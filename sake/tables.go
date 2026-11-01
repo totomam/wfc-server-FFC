@@ -2,6 +2,7 @@ package sake
 
 import (
 	"encoding/base64"
+	"sort"
 	"strconv"
 	"time"
 	"wwfc/database"
@@ -9,7 +10,7 @@ import (
 
 const (
 	MaxSakeRecordsPerProfile = 96
-	MaxSakeFieldsPerRecord   = 64
+	MaxSakeFieldsPerRecord   = 128 // (all games; upstream: 64) dental2ds/tbl_main_na stores ~85 fields
 	MaxSakeFieldValueLength  = 4096
 )
 
@@ -71,8 +72,14 @@ type SakeTable struct {
 	OwnerPermDelete Permission
 	// Override the default maximum number of records per owner.
 	LimitPerOwner int
+	// EnforceLimit makes CreateRecord refuse a new record once the owner has LimitPerOwner records
+	// (opt-in per table: upstream never enforced LimitPerOwner, so existing games are unchanged).
+	EnforceLimit bool
 	// If true, fields not specified in this table definition will be rejected.
 	Hardened bool
+	// If true, CreateRecord is refused (FieldNotFound) unless the request carries every field of
+	// Fields that has no Default, so partial records never become visible to searches.
+	RequireAllFields bool
 	// If true, Sake will return a NoPermission error for requests that don't have a custom handler
 	Reserved bool
 	// Custom handler for SearchForRecords. Returns an array of response Sake records.
@@ -82,6 +89,111 @@ type SakeTable struct {
 }
 
 var TableDefinitions = map[string]SakeTable{
+	// Fossil Fighters: Champions (dental2ds) Team Plaza: one team record per profile (EnforceLimit makes CreateRecord enforce LimitPerOwner), public search/rate (FFC decomp docs/online/TEAM_PLAZA.md).
+	"dental2ds/tbl_main_na": {
+		Rateable:         RateableYes,
+		OwnerType:        OwnerTypeProfile,
+		PublicPermCreate: PermissionAllowed,
+		PublicPermRead:   PermissionAllowed,
+		OwnerPermUpdate:  PermissionAllowed,
+		OwnerPermDelete:  PermissionAllowed,
+		LimitPerOwner:    1,
+		Hardened:         true,
+		EnforceLimit:     true,
+		RequireAllFields: true,
+		// The 82 fields CreateRecord writes (names and types from the game's ROM tables, FFC decomp
+		// docs/online/wiimmfi/tbl_main_na.json); Hardened rejects anything else so a client cannot add
+		// fields or change a field's type. battle_* are never sent by CreateRecord but GetSpecificRecords asks for them
+		// (Battle button). Note battle_win/lose/draw are self-reported by the owner (no server-side verification).
+		Fields: map[string]SakeFieldDefinition{
+			"player_level":  {Type: database.SakeFieldTypeInt},
+			"player_symbol": {Type: database.SakeFieldTypeInt},
+			"team_name":     {Type: database.SakeFieldTypeUnicodeString},
+			"formation":     {Type: database.SakeFieldTypeInt},
+			"ai_1":          {Type: database.SakeFieldTypeInt},
+			"ai_2":          {Type: database.SakeFieldTypeInt},
+			"ai_3":          {Type: database.SakeFieldTypeInt},
+			"ai_4":          {Type: database.SakeFieldTypeInt},
+			"team_rank":     {Type: database.SakeFieldTypeInt},
+			"group1":        {Type: database.SakeFieldTypeInt},
+			"group2":        {Type: database.SakeFieldTypeInt},
+			"player_name":   {Type: database.SakeFieldTypeUnicodeString},
+			"rev_id_1":      {Type: database.SakeFieldTypeInt},
+			"rev_id_2":      {Type: database.SakeFieldTypeInt},
+			"rev_id_3":      {Type: database.SakeFieldTypeInt},
+			"rev_id_4":      {Type: database.SakeFieldTypeInt},
+			"rev_id_5":      {Type: database.SakeFieldTypeInt},
+			"rev1_name":     {Type: database.SakeFieldTypeUnicodeString},
+			"rev1_rank":     {Type: database.SakeFieldTypeInt},
+			"rev1_bp":       {Type: database.SakeFieldTypeInt},
+			"rev1_head_id":  {Type: database.SakeFieldTypeInt},
+			"rev1_head_pt":  {Type: database.SakeFieldTypeInt},
+			"rev1_body_id":  {Type: database.SakeFieldTypeInt},
+			"rev1_body_pt":  {Type: database.SakeFieldTypeInt},
+			"rev1_arm_id":   {Type: database.SakeFieldTypeInt},
+			"rev1_arm_pt":   {Type: database.SakeFieldTypeInt},
+			"rev1_leg_id":   {Type: database.SakeFieldTypeInt},
+			"rev1_leg_pt":   {Type: database.SakeFieldTypeInt},
+			"rev1_after_id": {Type: database.SakeFieldTypeInt},
+			"rev1_after_pt": {Type: database.SakeFieldTypeInt},
+			"rev2_name":     {Type: database.SakeFieldTypeUnicodeString},
+			"rev2_rank":     {Type: database.SakeFieldTypeInt},
+			"rev2_bp":       {Type: database.SakeFieldTypeInt},
+			"rev2_head_id":  {Type: database.SakeFieldTypeInt},
+			"rev2_head_pt":  {Type: database.SakeFieldTypeInt},
+			"rev2_body_id":  {Type: database.SakeFieldTypeInt},
+			"rev2_body_pt":  {Type: database.SakeFieldTypeInt},
+			"rev2_arm_id":   {Type: database.SakeFieldTypeInt},
+			"rev2_arm_pt":   {Type: database.SakeFieldTypeInt},
+			"rev2_leg_id":   {Type: database.SakeFieldTypeInt},
+			"rev2_leg_pt":   {Type: database.SakeFieldTypeInt},
+			"rev2_after_id": {Type: database.SakeFieldTypeInt},
+			"rev2_after_pt": {Type: database.SakeFieldTypeInt},
+			"rev3_name":     {Type: database.SakeFieldTypeUnicodeString},
+			"rev3_rank":     {Type: database.SakeFieldTypeInt},
+			"rev3_bp":       {Type: database.SakeFieldTypeInt},
+			"rev3_head_id":  {Type: database.SakeFieldTypeInt},
+			"rev3_head_pt":  {Type: database.SakeFieldTypeInt},
+			"rev3_body_id":  {Type: database.SakeFieldTypeInt},
+			"rev3_body_pt":  {Type: database.SakeFieldTypeInt},
+			"rev3_arm_id":   {Type: database.SakeFieldTypeInt},
+			"rev3_arm_pt":   {Type: database.SakeFieldTypeInt},
+			"rev3_leg_id":   {Type: database.SakeFieldTypeInt},
+			"rev3_leg_pt":   {Type: database.SakeFieldTypeInt},
+			"rev3_after_id": {Type: database.SakeFieldTypeInt},
+			"rev3_after_pt": {Type: database.SakeFieldTypeInt},
+			"rev4_name":     {Type: database.SakeFieldTypeUnicodeString},
+			"rev4_rank":     {Type: database.SakeFieldTypeInt},
+			"rev4_bp":       {Type: database.SakeFieldTypeInt},
+			"rev4_head_id":  {Type: database.SakeFieldTypeInt},
+			"rev4_head_pt":  {Type: database.SakeFieldTypeInt},
+			"rev4_body_id":  {Type: database.SakeFieldTypeInt},
+			"rev4_body_pt":  {Type: database.SakeFieldTypeInt},
+			"rev4_arm_id":   {Type: database.SakeFieldTypeInt},
+			"rev4_arm_pt":   {Type: database.SakeFieldTypeInt},
+			"rev4_leg_id":   {Type: database.SakeFieldTypeInt},
+			"rev4_leg_pt":   {Type: database.SakeFieldTypeInt},
+			"rev4_after_id": {Type: database.SakeFieldTypeInt},
+			"rev4_after_pt": {Type: database.SakeFieldTypeInt},
+			"rev5_name":     {Type: database.SakeFieldTypeUnicodeString},
+			"rev5_rank":     {Type: database.SakeFieldTypeInt},
+			"rev5_bp":       {Type: database.SakeFieldTypeInt},
+			"rev5_head_id":  {Type: database.SakeFieldTypeInt},
+			"rev5_head_pt":  {Type: database.SakeFieldTypeInt},
+			"rev5_body_id":  {Type: database.SakeFieldTypeInt},
+			"rev5_body_pt":  {Type: database.SakeFieldTypeInt},
+			"rev5_arm_id":   {Type: database.SakeFieldTypeInt},
+			"rev5_arm_pt":   {Type: database.SakeFieldTypeInt},
+			"rev5_leg_id":   {Type: database.SakeFieldTypeInt},
+			"rev5_leg_pt":   {Type: database.SakeFieldTypeInt},
+			"rev5_after_id": {Type: database.SakeFieldTypeInt},
+			"rev5_after_pt": {Type: database.SakeFieldTypeInt},
+			"battle_win":    {Type: database.SakeFieldTypeInt, Default: "0"},
+			"battle_lose":   {Type: database.SakeFieldTypeInt, Default: "0"},
+			"battle_draw":   {Type: database.SakeFieldTypeInt, Default: "0"},
+		},
+	},
+
 	"micchannelwii/userinfo": {
 		Rateable:         RateableYes,
 		OwnerType:        OwnerTypeProfile,
@@ -288,6 +400,25 @@ func (t *SakeTable) GetDefaultFields() map[string]database.SakeField {
 	return defaultFields
 }
 
+// MissingRequiredFields returns the names (sorted) of the fields a create request must carry but does not.
+func (t *SakeTable) MissingRequiredFields(provided []string) []string {
+	if t == nil || !t.RequireAllFields {
+		return nil
+	}
+	have := map[string]bool{}
+	for _, name := range provided {
+		have[name] = true
+	}
+	var missing []string
+	for name, def := range t.Fields {
+		if def.Default == "" && !have[name] {
+			missing = append(missing, name)
+		}
+	}
+	sort.Strings(missing)
+	return missing
+}
+
 func (t *SakeTable) CheckValidField(fieldName string, field database.SakeField) Result {
 	lengthLimit := MaxSakeFieldValueLength
 	var verifyFunc func(value string) bool
@@ -310,7 +441,7 @@ func (t *SakeTable) CheckValidField(fieldName string, field database.SakeField) 
 	}
 
 	// These values may not be written to
-	if fieldName == "average_rating" || fieldName == "my_rating" || fieldName == "num_ratings" || fieldName == "sum_ratings" {
+	if fieldName == "average_rating" || fieldName == "my_rating" || fieldName == "num_ratings" || fieldName == "sum_ratings" || fieldName == "update_time" {
 		return ResultFieldNotFound
 	}
 

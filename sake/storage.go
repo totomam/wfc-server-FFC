@@ -2,10 +2,11 @@ package sake
 
 import (
 	"encoding/xml"
+	"errors"
 	"io"
 	"net/http"
-	"sort"
 	"strconv"
+	"strings"
 	"wwfc/common"
 	"wwfc/database"
 	"wwfc/logging"
@@ -75,6 +76,7 @@ type StorageRequestCommon struct {
 	Surrounding  int32         `xml:"surrounding"`
 	OwnerIDs     ArrayOfInt    `xml:"ownerids"`
 	CacheFlag    bool          `xml:"cacheFlag"`
+	RecordIDs    ArrayOfInt    `xml:"recordids"`
 	Rating       byte          `xml:"rating"`
 
 	Values ArrayOfRecordField `xml:"values"`
@@ -100,6 +102,13 @@ type StorageResponseBody struct {
 	UpdateRecordResponse     *UpdateRecordResponse     `xml:"http://gamespy.net/sake UpdateRecordResponse"`
 	GetMyRecordsResponse     *GetMyRecordsResponse     `xml:"http://gamespy.net/sake GetMyRecordsResponse"`
 	SearchForRecordsResponse *SearchForRecordsResponse `xml:"http://gamespy.net/sake SearchForRecordsResponse"`
+
+	GetRandomRecordsResponse   *GetRandomRecordsResponse   `xml:"http://gamespy.net/sake GetRandomRecordsResponse"`
+	GetSpecificRecordsResponse *GetSpecificRecordsResponse `xml:"http://gamespy.net/sake GetSpecificRecordsResponse"`
+	DeleteRecordResponse       *DeleteRecordResponse       `xml:"http://gamespy.net/sake DeleteRecordResponse"`
+	RateRecordResponse         *RateRecordResponse         `xml:"http://gamespy.net/sake RateRecordResponse"`
+	GetRecordCountResponse     *GetRecordCountResponse     `xml:"http://gamespy.net/sake GetRecordCountResponse"`
+	GetRecordLimitResponse     *GetRecordLimitResponse     `xml:"http://gamespy.net/sake GetRecordLimitResponse"`
 }
 
 type CreateRecordResponse struct {
@@ -171,6 +180,13 @@ var (
 		SakeNamespace + "/UpdateRecord":     updateRecord,
 		SakeNamespace + "/GetMyRecords":     getMyRecords,
 		SakeNamespace + "/SearchForRecords": searchForRecords,
+
+		SakeNamespace + "/GetRandomRecords":   getRandomRecords,
+		SakeNamespace + "/GetSpecificRecords": getSpecificRecords,
+		SakeNamespace + "/DeleteRecord":       deleteRecord,
+		SakeNamespace + "/RateRecord":         rateRecord,
+		SakeNamespace + "/GetRecordCount":     getRecordCount,
+		SakeNamespace + "/GetRecordLimit":     getRecordLimit,
 	}
 )
 
@@ -180,6 +196,7 @@ func handleStorageRequest(w http.ResponseWriter, r *http.Request) {
 	headerAction := r.Header.Get("SOAPAction")
 	if headerAction == "" {
 		logging.Error(moduleName, "No SOAPAction in header")
+		writeSoapFault(w, "Client", "Missing SOAPAction header")
 		return
 	}
 
@@ -194,7 +211,8 @@ func handleStorageRequest(w http.ResponseWriter, r *http.Request) {
 	soap := StorageRequestEnvelope{}
 	err = xml.Unmarshal(body, &soap)
 	if err != nil {
-		logging.Error(moduleName, "Received invalid XML")
+		logging.Error(moduleName, "Received invalid XML:", err)
+		writeSoapFault(w, "Client", "Invalid request XML")
 		return
 	}
 
@@ -208,7 +226,9 @@ func handleStorageRequest(w http.ResponseWriter, r *http.Request) {
 
 		handler, ok := storageRequestHandlers[xmlName]
 		if !ok {
-			panic("unknown SOAPAction: " + aurora.Cyan(xmlName).String())
+			logging.Error(moduleName, "Unknown SOAPAction:", aurora.Cyan(xmlName))
+			writeSoapFault(w, "Client", "Unknown SOAPAction")
+			return
 		}
 
 		profileId, gameInfo, result := getRequestIdentity(moduleName, soap.Body.Data)
@@ -220,6 +240,8 @@ func handleStorageRequest(w http.ResponseWriter, r *http.Request) {
 		}
 	} else {
 		logging.Error(moduleName, "Invalid SOAPAction or XML request:", aurora.Cyan(headerAction))
+		writeSoapFault(w, "Client", "SOAPAction does not match the request body")
+		return
 	}
 
 	out, err := xml.Marshal(response)
@@ -236,6 +258,19 @@ func handleStorageRequest(w http.ResponseWriter, r *http.Request) {
 	if _, err := w.Write(payload); err != nil {
 		logging.Error(moduleName, "Failed to write response:", err)
 	}
+}
+
+// writeSoapFault replies with a SOAP 1.1 fault instead of an empty body.
+func writeSoapFault(w http.ResponseWriter, code string, message string) {
+	var escaped strings.Builder
+	_ = xml.EscapeText(&escaped, []byte(message))
+	payload := []byte(xml.Header + `<soap:Envelope xmlns:soap="` + SOAPEnvNamespace + `"><soap:Body><soap:Fault><faultcode>soap:` + code +
+		`</faultcode><faultstring>` + escaped.String() + `</faultstring></soap:Fault></soap:Body></soap:Envelope>`)
+
+	w.Header().Set("Content-Type", "text/xml")
+	w.Header().Set("Content-Length", strconv.Itoa(len(payload)))
+	w.WriteHeader(http.StatusInternalServerError)
+	_, _ = w.Write(payload)
 }
 
 func getRequestIdentity(moduleName string, request StorageRequestCommon) (uint32, common.GameInfo, Result) {
@@ -288,6 +323,15 @@ func createRecord(moduleName string, profileId uint32, gameInfo common.GameInfo,
 		}}
 	}
 
+	if table == nil {
+		// Undefined table: there is no field schema to store a record against
+		// (upstream panicked in getInputFields with a nil map here)
+		logging.Error(moduleName, "Attempt to create record in undefined table", aurora.Cyan(request.TableID), "in game", aurora.BrightCyan(gameInfo.Name))
+		return StorageResponseBody{CreateRecordResponse: &CreateRecordResponse{
+			CreateRecordResult: ResultTableNotFound,
+		}}
+	}
+
 	if !table.AllowsPublicCreate() {
 		logging.Error(moduleName, "Attempt to create record in table that doesn't allow public create", aurora.Cyan(request.TableID), "in game", aurora.BrightCyan(gameInfo.Name))
 		return StorageResponseBody{CreateRecordResponse: &CreateRecordResponse{
@@ -304,13 +348,36 @@ func createRecord(moduleName string, profileId uint32, gameInfo common.GameInfo,
 		}}
 	}
 
+	var provided []string
+	for _, f := range request.Values.RecordFields {
+		provided = append(provided, f.Name)
+	}
+	if missing := table.MissingRequiredFields(provided); len(missing) != 0 {
+		logging.Error(moduleName, "Create in table", aurora.Cyan(request.TableID), "is missing", aurora.Cyan(len(missing)), "required fields, first:", aurora.Cyan(missing[0]))
+		return StorageResponseBody{CreateRecordResponse: &CreateRecordResponse{
+			CreateRecordResult: ResultFieldNotFound,
+		}}
+	}
+
 	record.GameId = gameInfo.GameID
 	record.TableId = request.TableID
 	record.RecordId = 0
 	record.OwnerId = int32(profileId)
 
-	// TODO: Limit number of records or fields a user can have
-	recordId, err := db.InsertSakeRecord(record)
+	var recordId int32
+	var err error
+	if table != nil && table.EnforceLimit && table.LimitPerOwner > 0 {
+		recordId, err = db.InsertSakeRecordLimited(record, table.LimitPerOwner)
+		if err == database.ErrSakeRecordLimit {
+			logging.Error(moduleName, "Profile", aurora.Cyan(profileId), "has reached the record limit of table", aurora.Cyan(request.TableID))
+			return StorageResponseBody{CreateRecordResponse: &CreateRecordResponse{
+				CreateRecordResult: ResultRecordLimitReached,
+			}}
+		}
+	} else {
+		// TODO: Limit number of fields a user can have
+		recordId, err = db.InsertSakeRecord(record)
+	}
 	if err != nil {
 		logging.Error(moduleName, "Failed to insert sake record into the database:", err)
 		return StorageResponseBody{CreateRecordResponse: &CreateRecordResponse{
@@ -354,6 +421,11 @@ func getMyRecords(moduleName string, profileId uint32, gameInfo common.GameInfo,
 		if err == pgx.ErrNoRows {
 			return StorageResponseBody{GetMyRecordsResponse: &GetMyRecordsResponse{
 				GetMyRecordsResult: ResultRecordNotFound,
+			}}
+		}
+		if errors.Is(err, database.ErrSakeFilterUnsupported) {
+			return StorageResponseBody{GetMyRecordsResponse: &GetMyRecordsResponse{
+				GetMyRecordsResult: ResultFilterInvalid,
 			}}
 		}
 		return StorageResponseBody{GetMyRecordsResponse: &GetMyRecordsResponse{
@@ -422,6 +494,13 @@ func updateRecord(moduleName string, profileId uint32, gameInfo common.GameInfo,
 				UpdateRecordResult: ResultRecordNotFound,
 			}}
 		}
+		if err == database.ErrSakeFieldLimitExceeded {
+			// UNTESTED: unreachable for dental2ds (Hardened table, 82 fixed fields) and never run for any
+			// game; NoPermission is a guess, the real SAKE server's code for this case is unknown.
+			return StorageResponseBody{UpdateRecordResponse: &UpdateRecordResponse{
+				UpdateRecordResult: ResultNoPermission,
+			}}
+		}
 		return StorageResponseBody{UpdateRecordResponse: &UpdateRecordResponse{
 			UpdateRecordResult: ResultDatabaseUnavailable,
 		}}
@@ -469,41 +548,21 @@ func searchForRecords(moduleName string, profileId uint32, gameInfo common.GameI
 		records, err = db.GetSakeRecords(gameInfo.GameID, ownerIds, request.TableID, nil, request.Fields.String, request.Filter)
 		if err != nil {
 			logging.Error(moduleName, "Failed to get sake records from the database:", err)
+			if errors.Is(err, database.ErrSakeFilterUnsupported) {
+				return StorageResponseBody{SearchForRecordsResponse: &SearchForRecordsResponse{
+					SearchForRecordsResult: ResultFilterInvalid,
+				}}
+			}
 			return StorageResponseBody{SearchForRecordsResponse: &SearchForRecordsResponse{
 				SearchForRecordsResult: ResultDatabaseUnavailable,
 			}}
 		}
 	}
 
-	// Sort the records now. TODO: This can be done more effectively in the database query.
-	sort.Slice(records, func(l, r int) bool {
-		lVal, lExists := records[l].Fields[request.Sort]
-		rVal, rExists := records[r].Fields[request.Sort]
-		if !lExists || !rExists {
-			// Prioritises the one that exists or goes left if both false
-			return rExists
-		}
+	sortRecords(records, request.Sort)
 
-		if lVal.Type != database.SakeFieldTypeInt || rVal.Type != database.SakeFieldTypeInt {
-			panic(aurora.Cyan(lVal.Type).String() + " used as sort value")
-		}
-
-		lValInt, err := strconv.ParseInt(lVal.Value, 10, 64)
-		if err != nil {
-			panic(err)
-		}
-		rValInt, err := strconv.ParseInt(rVal.Value, 10, 64)
-		if err != nil {
-			panic(err)
-		}
-
-		return lValInt < rValInt
-	})
-
-	// Enforce the maximum number of records after sorting
-	if request.Max > 0 && len(records) > int(request.Max) {
-		records = records[:request.Max]
-	}
+	// Enforce the offset and maximum number of records after sorting
+	records = applyOffsetMax(records, request.Offset, request.Max)
 
 	responseValues, result := fillResponseValues(moduleName, profileId, table, records, request)
 	response := SearchForRecordsResponse{
@@ -534,6 +593,11 @@ func getInputFields(moduleName string, request StorageRequestCommon, table *Sake
 			logging.Error(moduleName, "Invalid field type tag:", aurora.Cyan(field.Value.Value.XMLName.Local))
 			return nil, ResultFieldTypeInvalid
 		}
+		if field.Name == "update_time" {
+			// Server-owned (set on every create/update). Some games send their own clock value in
+			// UpdateRecord (dental2ds does); ignore it rather than failing the whole request.
+			continue
+		}
 		if field.Name == "ownerid" || field.Name == "recordid" || field.Name == "gameid" || field.Name == "tableid" {
 			logging.Error(moduleName, "Attempt to set reserved field:", aurora.Cyan(field.Name))
 			return nil, ResultNoPermission
@@ -559,6 +623,24 @@ func getInputFields(moduleName string, request StorageRequestCommon, table *Sake
 
 func fillResponseValues(moduleName string, profileId uint32, table *SakeTable, records []database.SakeRecord, request StorageRequestCommon) (ArrayOfArrayOfRecordValue, Result) {
 	var response ArrayOfArrayOfRecordValue
+	for _, field := range request.Fields.String {
+		if field != "my_rating" || len(records) == 0 {
+			continue
+		}
+		var recordIds []int32
+		for _, record := range records {
+			recordIds = append(recordIds, record.RecordId)
+		}
+		myRatings, err := db.GetSakeMyRatings(records[0].GameId, records[0].TableId, int32(profileId), recordIds)
+		if err != nil {
+			logging.Error(moduleName, "Failed to get ratings from the database:", err)
+			return ArrayOfArrayOfRecordValue{}, ResultDatabaseUnavailable
+		}
+		for i := range records {
+			records[i].MyRating = myRatings[records[i].RecordId]
+		}
+		break
+	}
 	for _, record := range records {
 		valueArray := ArrayOfRecordValue{}
 		for _, field := range request.Fields.String {
@@ -574,6 +656,11 @@ func fillResponseValues(moduleName string, profileId uint32, table *SakeTable, r
 					XMLName: xml.Name{Local: "intValue"},
 					Value:   strconv.FormatInt(int64(int32(record.RecordId)), 10),
 				}})
+				continue
+			}
+
+			if v, ok := syntheticField(record, field); ok {
+				valueArray.RecordValues = append(valueArray.RecordValues, RecordValue{Value: v})
 				continue
 			}
 
@@ -629,6 +716,8 @@ func (body *StorageResponseBody) setResultTag(xmlName string, result Result) {
 			GetMyRecordsResult: result,
 		}
 	case SakeNamespace + "/SearchForRecords":
-		body.SearchForRecordsResponse = &SearchForRecordsResponse{}
+		body.SearchForRecordsResponse = &SearchForRecordsResponse{SearchForRecordsResult: result}
+	default:
+		body.setExtraResultTag(xmlName, result)
 	}
 }

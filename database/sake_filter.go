@@ -1,7 +1,7 @@
 package database
 
 import (
-	"errors"
+	"fmt"
 	"strconv"
 	"strings"
 	"wwfc/filter"
@@ -17,9 +17,14 @@ type expression struct {
 
 func createSqlFilter(conn *pgconn.PgConn, basenode *filter.TreeNode) (value string, err error) {
 	defer func() {
-		if str := recover(); str != nil {
+		if r := recover(); r != nil {
 			value = ""
-			err = errors.New(str.(string))
+			if e, ok := r.(error); ok {
+				err = e
+			} else {
+				// Malformed or unsupported filter expression (a client error)
+				err = fmt.Errorf("%w: %v", ErrSakeFilterUnsupported, r)
+			}
 		}
 	}()
 
@@ -159,11 +164,17 @@ func (e *expression) filterAppendMathOperator(operator string, args []*filter.Tr
 	if cnt != 2 {
 		panic("operator requires exactly 2 arguments")
 	}
+	// average_rating is a fractional value: compare it as numeric (the filter language only has
+	// integer literals), everything else keeps upstream's bigint comparison
+	cast := "bigint"
+	if isAverageRating(args[0]) || isAverageRating(args[1]) {
+		cast = "numeric"
+	}
 	e.query += "( ("
 	e.filterAppendNode(args[0])
-	e.query += ")::bigint " + operator + " ("
+	e.query += ")::" + cast + " " + operator + " ("
 	e.filterAppendNode(args[1])
-	e.query += ")::bigint )"
+	e.query += ")::" + cast + " )"
 }
 
 func (e *expression) filterAppendFuncSubstring(token *filter.FuncToken) {
@@ -199,6 +210,25 @@ func (e *expression) filterAppendQueryValue(token *filter.IdentityToken) {
 		return
 	}
 
+	// Virtual rating fields are computed from sake_ratings, never from the stored JSON
+	// (RateableYes tables store stale num_ratings/average_rating defaults there).
+	const ratingsFrom = "FROM sake_ratings sr WHERE sr.game_id = sake_records.game_id AND sr.table_id = sake_records.table_id AND sr.record_id = sake_records.record_id"
+	switch token.Name {
+	case "num_ratings":
+		e.query += "(SELECT COUNT(*) " + ratingsFrom + ")"
+		return
+	case "sum_ratings":
+		e.query += "(SELECT COALESCE(SUM(sr.rating), 0) " + ratingsFrom + ")"
+		return
+	case "average_rating":
+		e.query += "(SELECT COALESCE(AVG(sr.rating), 0)::numeric " + ratingsFrom + ")"
+		return
+	case "update_time", "my_rating":
+		// update_time has no filter representation here and my_rating depends on the requesting
+		// profile: both are rejected (sorting and reading them is supported).
+		panic(ErrSakeFilterUnsupported)
+	}
+
 	e.query += "COALESCE(fields->" + e.filterPushArg(token.Name) + "->>'value', '0')"
 }
 
@@ -213,4 +243,9 @@ func (e *expression) filterPushArg(arg string) string {
 		panic(err)
 	}
 	return `'` + str + `'`
+}
+
+func isAverageRating(node *filter.TreeNode) bool {
+	v, ok := node.Value.(*filter.IdentityToken)
+	return ok && v.Name == "average_rating"
 }

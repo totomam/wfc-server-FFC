@@ -1,5 +1,7 @@
 package database
 
+import "wwfc/logging"
+
 func (c *Connection) UpdateTables() {
 	_, _ = c.pool.Exec(c.ctx, `
 
@@ -36,4 +38,41 @@ func (c *Connection) UpdateTables() {
 		ADD IF NOT EXISTS upload_time timestamp without time zone;
 	
 	`)
+
+	// Sake records may hold up to 128 fields (Fossil Fighters: Champions Team Plaza stores ~85)
+	_, err := c.pool.Exec(c.ctx, `
+	DO $$
+	DECLARE r record;
+	BEGIN
+		-- Only runs once: when the 128-field constraint is not there yet, replace the old (64-field) one
+		IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conrelid = 'public.sake_records'::regclass AND conname = 'sake_records_fields_check') THEN
+			FOR r IN SELECT conname FROM pg_constraint WHERE conrelid = 'public.sake_records'::regclass AND contype = 'c'
+				AND pg_get_constraintdef(oid) LIKE '%jsonb_array_length%' LOOP
+				EXECUTE 'ALTER TABLE public.sake_records DROP CONSTRAINT ' || quote_ident(r.conname);
+			END LOOP;
+			ALTER TABLE public.sake_records ADD CONSTRAINT sake_records_fields_check
+				CHECK (jsonb_typeof(fields) = 'object' AND jsonb_array_length(jsonb_path_query_array(fields, '$.keyvalue().key')) <= 128);
+		END IF;
+	END $$;
+	`)
+	if err != nil {
+		logging.Error("DATABASE", "Failed to update the sake_records field limit constraint:", err)
+	}
+
+	// Ratings live in their own table so clients can never read or forge them through record fields.
+	_, err = c.pool.Exec(c.ctx, `
+	CREATE TABLE IF NOT EXISTS public.sake_ratings (
+		game_id integer NOT NULL,
+		table_id character varying NOT NULL,
+		record_id integer NOT NULL,
+		rater_profile_id integer NOT NULL,
+		rating smallint NOT NULL,
+
+		PRIMARY KEY (game_id, table_id, record_id, rater_profile_id),
+		FOREIGN KEY (game_id, table_id, record_id) REFERENCES public.sake_records (game_id, table_id, record_id) ON DELETE CASCADE
+	);
+	`)
+	if err != nil {
+		logging.Error("DATABASE", "Failed to create the sake_ratings table:", err)
+	}
 }

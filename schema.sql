@@ -71,11 +71,27 @@ CREATE TABLE IF NOT EXISTS public.sake_records (
     table_id character varying NOT NULL,
     record_id integer NOT NULL DEFAULT (random() * 2147483647)::integer,
     owner_id integer NOT NULL,
-    fields jsonb NOT NULL CHECK (jsonb_typeof(fields) = 'object' AND jsonb_array_length(jsonb_path_query_array(fields, '$.keyvalue().key')) <= 64),
+    fields jsonb NOT NULL CHECK (jsonb_typeof(fields) = 'object' AND jsonb_array_length(jsonb_path_query_array(fields, '$.keyvalue().key')) <= 128),
     create_time timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
     update_time timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
 
     CONSTRAINT one_sake_record_constraint UNIQUE (game_id, table_id, record_id)
+);
+
+--
+-- Name: sake_ratings; Type: TABLE; Schema: public; Owner: wiilink
+-- One rating per (record, rating profile); the primary key makes rating atomic.
+--
+
+CREATE TABLE IF NOT EXISTS public.sake_ratings (
+    game_id integer NOT NULL,
+    table_id character varying NOT NULL,
+    record_id integer NOT NULL,
+    rater_profile_id integer NOT NULL,
+    rating smallint NOT NULL,
+
+    PRIMARY KEY (game_id, table_id, record_id, rater_profile_id),
+    FOREIGN KEY (game_id, table_id, record_id) REFERENCES public.sake_records (game_id, table_id, record_id) ON DELETE CASCADE
 );
 
 --
