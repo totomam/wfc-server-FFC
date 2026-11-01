@@ -123,13 +123,8 @@ func handleAuthProfanityEndpoint(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if wencValues, ok := form["wenc"]; ok {
-		// It's okay for this to error, the real server
-		// just falls back to the default encoding in
-		// this case even if it cant properly handle it
-		wencDecoded, err := common.Base64DwcEncoding.DecodeString(string(wencValues[0]))
-		if err == nil {
-			wordsEncoding = string(wencDecoded)
-		}
+		// parseAuthRequest already base64-decoded every form value
+		wordsEncoding = string(wencValues)
 	}
 
 	if wordsEncoding != "UTF-8" && wordsEncoding != "UTF-16LE" && wordsEncoding != "UTF-16BE" {
@@ -141,10 +136,7 @@ func handleAuthProfanityEndpoint(w http.ResponseWriter, r *http.Request) {
 	// non-profane word
 	wordsBytes := []byte{}
 	if wordsValues, ok := form["words"]; ok {
-		wordsDecoded, err := common.Base64DwcEncoding.DecodeString(string(wordsValues[0]))
-		if err == nil {
-			wordsBytes = wordsDecoded
-		}
+		wordsBytes = wordsValues
 	}
 
 	// This field is entirely optional, unsure what
@@ -153,10 +145,7 @@ func handleAuthProfanityEndpoint(w http.ResponseWriter, r *http.Request) {
 	// list differently for different regions?
 	var wordsRegion string
 	if wordsRegionValues, ok := form["wregion"]; ok {
-		wordsRegionDecoded, err := common.Base64DwcEncoding.DecodeString(string(wordsRegionValues[0]))
-		if err == nil {
-			wordsRegion = string(wordsRegionDecoded)
-		}
+		wordsRegion = string(wordsRegionValues)
 	}
 
 	var words string
@@ -192,8 +181,8 @@ func handleAuthProfanityEndpoint(w http.ResponseWriter, r *http.Request) {
 		"prwords":  prwords,
 	}
 
-	// Only known value of this field that works this way
-	if wordsRegion == "A" {
+	// "A" asks for every region; DS games (e.g. dental2ds, wregion "E") read prwords<region> for their own region
+	if wordsRegion != "" {
 		// TODO - The real server seems to handle the input words differently per region? These values are supposed to differ from prwords
 		reply["prwordsA"] = prwords
 		reply["prwordsC"] = prwords
