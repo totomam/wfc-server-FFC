@@ -1,6 +1,8 @@
 package nas
 
 import (
+	"encoding/binary"
+	"hash/crc32"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -13,7 +15,8 @@ import (
 )
 
 var dlsActions = map[string]func(moduleName string, fields map[string][]byte) []byte{
-	"count": dlsCount,
+	"count":   dlsCount,
+	"balance": dlsBalance,
 }
 
 func handleDownloadEndpoint(w http.ResponseWriter, r *http.Request) {
@@ -63,6 +66,30 @@ func dlsCount(moduleName string, fields map[string][]byte) []byte {
 	}
 
 	return append([]byte(strconv.Itoa(len(dir))), 0)
+}
+
+// dlsBalance serves the wire-format table from docs/online/BALANCE_WIRE.md (ffc-decomp repo) for the "balance"
+// Nd action (mods/net_balance, same free-form-action mechanism as "count"/"list"/"contents": src/ov001/setupHttp.c
+// POSTs whatever action string the client asks for to this same endpoint). A missing file -> a well-formed EMPTY
+// table (count=0, correct CRC), not an error response: the client's BalanceParse must see one well-formed shape or
+// the other, never a malformed one it has to special-case.
+func dlsBalance(moduleName string, fields map[string][]byte) []byte {
+	path := filepath.Join(balanceDir, string(fields["rhgamecd"])+".bin")
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return emptyBalanceTable()
+	}
+	return data
+}
+
+func emptyBalanceTable() []byte {
+	buf := make([]byte, 16) // 12-byte header + 0 records + 4-byte CRC32, count == 0
+	copy(buf[0:4], "FFCB")
+	buf[4] = 1 // version
+	binary.LittleEndian.PutUint16(buf[8:10], 0)
+	crc := crc32.ChecksumIEEE(buf[0:12])
+	binary.LittleEndian.PutUint32(buf[12:16], crc)
+	return buf
 }
 
 func isValidRHGameCode(rhgamecd string) bool {
