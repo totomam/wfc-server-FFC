@@ -61,6 +61,11 @@ func getCRCType(gameId string) (crcType byte, reverse bool) {
 	case 'R', 'S', 'H', 'W', 'X', 'Y':
 		crcType = fcMD5
 
+	// DS (NitroDWC) game codes: the DS DWC library has only the MD5 friend key (ffc-decomp:
+	// src/ov000/DWC_Acc_CheckFriendKey.c), e.g. VDEE pid 1000000000 -> 2243-3829-9392 as the game shows it.
+	case 'A', 'B', 'C', 'I', 'K', 'T', 'V':
+		crcType = fcMD5
+
 	default:
 		crcType = fcCRC8
 	}
