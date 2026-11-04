@@ -8,8 +8,10 @@ set -euo pipefail
 COMMIT=${COMMIT:-74ee000}
 GO_VER=1.25.0
 DIR=/opt/wfc
-IP=$(ip -4 route get 1.1.1.1 | awk '{for(i=1;i<=NF;i++) if($i=="src") print $(i+1)}')
-echo "== public IP: $IP"
+LOCAL_IP=$(ip -4 route get 1.1.1.1 | awk '{for(i=1;i<=NF;i++) if($i=="src") print $(i+1)}')
+# The NIC may carry a private/NAT address (e.g. 10.0.2.15); DNS answers must be the public IP.
+IP=${PUBLIC_IP:-$(curl -4 -fsS --max-time 10 https://api.ipify.org || curl -4 -fsS --max-time 10 https://ifconfig.me)}
+echo "== public IP: $IP   local IP: $LOCAL_IP"
 
 export DEBIAN_FRONTEND=noninteractive
 apt-get update -q
@@ -62,7 +64,7 @@ chown -R wwfc:wwfc $DIR && chmod 600 $DIR/config.xml
 # DNS: answer ONLY nintendowifi.net (no upstream = not an open resolver)
 cat > /etc/dnsmasq.d/ffc.conf <<DNS
 address=/nintendowifi.net/$IP
-listen-address=$IP
+listen-address=$LOCAL_IP
 bind-interfaces
 no-resolv
 DNS
@@ -103,5 +105,5 @@ echo "== DONE"
 echo "IP:      $IP"
 echo "commit:  $(git -C $DIR log -1 --format='%h %s')"
 echo "service: $(systemctl is-active wwfc)   (logs: journalctl -u wwfc -f)"
-echo "DNS:     $(dig +short @$IP gpcm.gs.nintendowifi.net 2>/dev/null || echo 'install dnsutils to check')"
+echo "DNS:     $(dig +short @$LOCAL_IP gpcm.gs.nintendowifi.net 2>/dev/null || echo 'install dnsutils to check')"
 echo "Also add these ports to the Vultr firewall group if you use one: TCP 22,80,28910,29900,29901,29920 UDP 53,27900,27901"
