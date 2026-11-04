@@ -66,7 +66,13 @@ listen-address=$IP
 bind-interfaces
 no-resolv
 DNS
-systemctl restart dnsmasq && systemctl enable -q dnsmasq
+# Ubuntu's systemd-resolved owns 127.0.0.53:53; keep dnsmasq off loopback entirely
+grep -q '^DNSMASQ_EXCEPT=' /etc/default/dnsmasq 2>/dev/null || echo 'DNSMASQ_EXCEPT="lo"' >> /etc/default/dnsmasq
+systemctl enable -q dnsmasq || true
+if ! systemctl restart dnsmasq; then
+  echo "!! dnsmasq failed (server still installs; players can use the hosts-file method):"
+  journalctl -u dnsmasq -n 15 --no-pager || true
+fi
 
 # systemd service
 cat > /etc/systemd/system/wwfc.service <<UNIT
