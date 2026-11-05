@@ -18,6 +18,7 @@ import (
 var (
 	dlcDir     = "./dlc"
 	balanceDir = "./balance"
+	packageDir = "./package"
 )
 
 func parseAuthRequest(r *http.Request) (map[string][]byte, error) {

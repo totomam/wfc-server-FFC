@@ -17,7 +17,11 @@ import (
 var dlsActions = map[string]func(moduleName string, fields map[string][]byte) []byte{
 	"count":   dlsCount,
 	"balance": dlsBalance,
+	"package": dlsPackage,
 }
+
+// pkgMaxLen is the client's package rx limit (PKG_MAX_LEN, docs/online/PACKAGE_WIRE.md in ffc-decomp).
+const pkgMaxLen = 48 * 1024
 
 func handleDownloadEndpoint(w http.ResponseWriter, r *http.Request) {
 	moduleName := getModuleName(r)
@@ -78,6 +82,22 @@ func dlsBalance(moduleName string, fields map[string][]byte) []byte {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return emptyBalanceTable()
+	}
+	return data
+}
+
+// dlsPackage serves the SIGNED code package (docs/online/PACKAGE_WIRE.md, ffc-decomp; built + signed offline by
+// tools/online_pkg.py on the key holder's PC) for the "package" Nd action. The server never signs or checks the
+// signature: the client verifies Ed25519 itself. No file (or one over the client's limit) -> "NONE", which fails
+// the client's PkgCheck = vanilla rules (stock bytes), the same as a stock server.
+func dlsPackage(moduleName string, fields map[string][]byte) []byte {
+	path := filepath.Join(packageDir, string(fields["rhgamecd"])+".bin")
+	data, err := os.ReadFile(path)
+	if err != nil || len(data) > pkgMaxLen {
+		if err == nil {
+			logging.Error(moduleName, "package too large:", aurora.Cyan(len(data)))
+		}
+		return []byte("NONE")
 	}
 	return data
 }
