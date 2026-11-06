@@ -8,6 +8,7 @@ import (
 	"time"
 	"wwfc/api"
 	"wwfc/common"
+	"wwfc/database"
 	"wwfc/gamestats"
 	"wwfc/logging"
 	"wwfc/race"
@@ -48,6 +49,13 @@ func StartServer(reload bool) {
 	if config.EnableHTTPS {
 		go setupTLS(config)
 	}
+
+	// PvP result reports (dls action "result", dls_result.go) need the users table + match_results.
+	db := database.Start(config)
+	if err := db.CreateMatchResultsTable(); err != nil {
+		logging.Error("NAS", "match_results table:", err)
+	}
+	resultDB = &db
 
 	err := CacheProfanityFile()
 	if err != nil {

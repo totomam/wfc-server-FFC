@@ -177,6 +177,36 @@ CREATE TABLE IF NOT EXISTS public.events (
 );
 
 --
+-- Name: match_results; Type: TABLE; Schema: public; Owner: wiilink
+-- FFC PvP result reports (nas/dls_result.go, database/results.go): one row per match, both consoles report.
+--
+
+CREATE TABLE IF NOT EXISTS public.match_results (
+    id bigserial PRIMARY KEY,
+    pid_a bigint NOT NULL,
+    pid_b bigint NOT NULL,
+    winner_pid bigint,
+    draw boolean NOT NULL DEFAULT false,
+    time_up boolean NOT NULL DEFAULT false,
+    modded boolean NOT NULL DEFAULT false,
+    match_ver bigint NOT NULL DEFAULT 0,
+    name_a character varying NOT NULL DEFAULT '',
+    name_b character varying NOT NULL DEFAULT '',
+    team_a jsonb NOT NULL,
+    team_b jsonb NOT NULL,
+    report_a bytea,
+    report_b bytea,
+    status character varying NOT NULL DEFAULT 'single',
+    mismatch character varying NOT NULL DEFAULT '',
+    created_at timestamp without time zone NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at timestamp without time zone NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS match_results_pair_idx ON public.match_results (pid_a, pid_b, created_at);
+
+ALTER TABLE public.match_results OWNER TO wiilink;
+
+--
 -- PostgreSQL database dump complete
 --
 

@@ -1,0 +1,178 @@
+package nas
+
+import (
+	"encoding/binary"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"hash/crc32"
+	"strconv"
+	"wwfc/common"
+	"wwfc/database"
+	"wwfc/logging"
+
+	"github.com/logrusorgru/aurora/v3"
+)
+
+// PvP result reporting (ffc-decomp ROADMAP #20). The patched FFC client (mods/net_balance/hooks/net_result.c) posts
+// Nd action "result" when an online battle ends; attr1 + attr2 carry the 192-byte report (each field DWC-base64,
+// already decoded by parseAuthRequest). Layout + every field's game source: docs/sessions/s95-online/payload_spec.md.
+
+const (
+	resultLen       = 192
+	resultHdrLen    = 20
+	resultPlayerLen = 84
+	resultCrcOfs    = 188
+	resultFlagTime  = 1
+	resultFlagMod   = 2
+)
+
+type ResultCreature struct {
+	Slot     int      `json:"slot"`
+	Creature uint8    `json:"creature"`
+	Rank     uint8    `json:"rank_index"`
+	BaseBP   uint16   `json:"base_bp"`
+	PartBP   [4]uint8 `json:"part_bp"`
+	Evo      uint8    `json:"evo"`
+	Flags    uint8    `json:"flags"`
+}
+
+type ResultPlayer struct {
+	Name        string           `json:"name"`
+	ProfileWord uint32           `json:"profile_word"`
+	Team        []ResultCreature `json:"team"`
+}
+
+type ResultReport struct {
+	Version  uint8
+	Result   uint8 // 0 reporter won, 1 reporter lost, 2 draw
+	Flags    uint8
+	MyAID    uint8
+	MyPID    uint32
+	OppPID   uint32
+	MatchVer uint32
+	Wins     uint16
+	Losses   uint16
+	Players  [2]ResultPlayer // aid order
+}
+
+// resultStore is the database part dlsResult needs (a fake in tests).
+type resultStore interface {
+	UserOwnsProfile(userID uint64, profileID uint32) (bool, error)
+	ProfileExists(profileID uint32) (bool, error)
+	StoreMatchReport(r database.MatchReport) (int64, string, error)
+}
+
+var resultDB resultStore
+
+func parseResultReport(b []byte) (ResultReport, error) {
+	var r ResultReport
+	if len(b) != resultLen {
+		return r, fmt.Errorf("length %d", len(b))
+	}
+	if crc32.ChecksumIEEE(b[:resultCrcOfs]) != binary.LittleEndian.Uint32(b[resultCrcOfs:]) {
+		return r, errors.New("crc")
+	}
+	r.Version, r.Result, r.Flags, r.MyAID = b[0], b[1], b[2], b[3]
+	r.MyPID = binary.LittleEndian.Uint32(b[4:])
+	r.OppPID = binary.LittleEndian.Uint32(b[8:])
+	r.MatchVer = binary.LittleEndian.Uint32(b[12:])
+	r.Wins = binary.LittleEndian.Uint16(b[16:])
+	r.Losses = binary.LittleEndian.Uint16(b[18:])
+	switch {
+	case r.Version != 1:
+		return r, fmt.Errorf("version %d", r.Version)
+	case r.Result > 2:
+		return r, fmt.Errorf("result %d", r.Result)
+	case r.MyAID > 1:
+		return r, fmt.Errorf("aid %d", r.MyAID)
+	case r.Flags&^(resultFlagTime|resultFlagMod) != 0:
+		return r, fmt.Errorf("flags %#x", r.Flags)
+	case r.Result == 2 && r.Flags&resultFlagTime == 0:
+		return r, errors.New("draw without time limit") // payload_spec.md section 2: a draw only exists at the limit
+	case r.MyPID == 0 || r.OppPID == 0 || r.MyPID == r.OppPID:
+		return r, errors.New("profile ids")
+	}
+	for a := 0; a < 2; a++ {
+		p := b[resultHdrLen+a*resultPlayerLen : resultHdrLen+(a+1)*resultPlayerLen]
+		pl := ResultPlayer{Name: common.UTF16Decode(p[0:18], binary.LittleEndian), ProfileWord: binary.LittleEndian.Uint32(p[20:])}
+		pl.Team = []ResultCreature{}
+		for k := 0; k < 5; k++ {
+			c := p[24+k*12 : 36+k*12]
+			if c[0] == 0 {
+				continue
+			}
+			pl.Team = append(pl.Team, ResultCreature{Slot: k, Creature: c[0], Rank: c[1], BaseBP: binary.LittleEndian.Uint16(c[2:]),
+				PartBP: [4]uint8{c[4], c[5], c[6], c[7]}, Evo: c[8], Flags: c[9]})
+		}
+		if len(pl.Team) == 0 || int(p[18]) != len(pl.Team) {
+			return r, fmt.Errorf("team %d", a)
+		}
+		r.Players[a] = pl
+	}
+	return r, nil
+}
+
+// toMatchReport normalises one report to the pair order A = lower profile id.
+func (r ResultReport) toMatchReport(raw []byte) database.MatchReport {
+	me, opp := r.Players[r.MyAID], r.Players[r.MyAID^1]
+	m := database.MatchReport{TimeUp: r.Flags&resultFlagTime != 0, Modded: r.Flags&resultFlagMod != 0, MatchVer: r.MatchVer, Raw: raw}
+	switch r.Result {
+	case 0:
+		m.WinnerPid = r.MyPID
+	case 1:
+		m.WinnerPid = r.OppPID
+	default:
+		m.Draw = true
+	}
+	teamMe, _ := json.Marshal(me.Team)
+	teamOpp, _ := json.Marshal(opp.Team)
+	if r.MyPID < r.OppPID {
+		m.PidA, m.PidB, m.NameA, m.NameB, m.TeamA, m.TeamB, m.ReporterIsA = r.MyPID, r.OppPID, me.Name, opp.Name, teamMe, teamOpp, true
+	} else {
+		m.PidA, m.PidB, m.NameA, m.NameB, m.TeamA, m.TeamB = r.OppPID, r.MyPID, opp.Name, me.Name, teamOpp, teamMe
+	}
+	return m
+}
+
+// dlsResult answers action=result: "ok <row id> <status>" or "err <reason>" (the client only checks that a body came
+// back; the reply is for logs and tests).
+func dlsResult(moduleName string, fields map[string][]byte) []byte {
+	raw := append(append([]byte{}, fields["attr1"]...), fields["attr2"]...)
+	r, err := parseResultReport(raw)
+	if err != nil {
+		logging.Error(moduleName, "result: invalid report:", aurora.Cyan(err.Error()))
+		return []byte("err report")
+	}
+	userID, err := strconv.ParseUint(string(fields["userid"]), 10, 64)
+	if err != nil {
+		logging.Error(moduleName, "result: bad userid")
+		return []byte("err userid")
+	}
+	if resultDB == nil {
+		logging.Error(moduleName, "result: no database")
+		return []byte("err db")
+	}
+	if ok, err := resultDB.UserOwnsProfile(userID, r.MyPID); err != nil || !ok {
+		logging.Error(moduleName, "result: profile", aurora.Cyan(r.MyPID), "is not user", aurora.Cyan(userID))
+		return []byte("err owner")
+	}
+	if ok, err := resultDB.ProfileExists(r.OppPID); err != nil || !ok {
+		logging.Error(moduleName, "result: unknown opponent", aurora.Cyan(r.OppPID))
+		return []byte("err opponent")
+	}
+	m := r.toMatchReport(raw)
+	id, status, err := resultDB.StoreMatchReport(m)
+	if err != nil {
+		logging.Error(moduleName, "result: store:", err)
+		return []byte("err store")
+	}
+	outcome := "draw"
+	if !m.Draw {
+		outcome = "winner " + strconv.FormatUint(uint64(m.WinnerPid), 10)
+	}
+	logging.Notice(moduleName, "Match result", aurora.Cyan(id), aurora.Cyan(status).String()+":", aurora.Cyan(m.PidA), aurora.Cyan(m.NameA),
+		"vs", aurora.Cyan(m.PidB), aurora.Cyan(m.NameB), "->", aurora.BrightGreen(outcome), "reporter", aurora.Cyan(r.MyPID),
+		"teams", aurora.Cyan(string(m.TeamA)), aurora.Cyan(string(m.TeamB)))
+	return []byte("ok " + strconv.FormatInt(id, 10) + " " + status)
+}
