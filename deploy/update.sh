@@ -1,10 +1,10 @@
 #!/bin/bash
 # Update an FFC WFC server installed by vultr_setup.sh (/opt/wfc, user wwfc) to a newer commit. Run as root:
-#   curl -fsSL https://raw.githubusercontent.com/totomam/wfc-server-FFC/ccr-d95493a2-r52wk0/deploy/update.sh | bash
+#   curl -fsSL https://raw.githubusercontent.com/totomam/wfc-server-FFC/ffc/deploy/update.sh | bash
 # BRANCH / COMMIT override what is built (default: this branch's head). Keeps config.xml, the DB, balance/, package/.
 set -euo pipefail
 [ "$(id -u)" = 0 ] || { echo "run as root"; exit 1; }
-BRANCH=${BRANCH:-ccr-d95493a2-r52wk0}
+BRANCH=${BRANCH:-ffc}
 DIR=/opt/wfc
 export PATH=$PATH:/usr/local/go/bin
 [ -d $DIR/.git ] || { echo "$DIR missing: run vultr_setup.sh first"; exit 1; }

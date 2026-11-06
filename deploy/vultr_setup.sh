@@ -1,11 +1,11 @@
 #!/bin/bash
 # One-shot FFC WFC server setup for a fresh Ubuntu 24.04 VPS (Vultr etc.). Run as root:
-#   curl -fsSL https://raw.githubusercontent.com/totomam/wfc-server-FFC/ccr-24cb589d-f4w2x4/deploy/vultr_setup.sh | bash
+#   curl -fsSL https://raw.githubusercontent.com/totomam/wfc-server-FFC/ffc/deploy/vultr_setup.sh | bash
 # Phase 1 (no DS certs): HTTP only, port 443 stays closed. Certs: docs/online/HOSTING.md §6a in ffc-decomp.
 set -euo pipefail
 [ "$(id -u)" = 0 ] || { echo "run as root"; exit 1; }
 
-COMMIT=${COMMIT:-74ee000}
+COMMIT=${COMMIT:-FETCH_HEAD}   # default: head of ffc (s94: package endpoint + Bonus Data)
 GO_VER=1.25.0
 DIR=/opt/wfc
 LOCAL_IP=$(ip -4 route get 1.1.1.1 | awk '{for(i=1;i<=NF;i++) if($i=="src") print $(i+1)}')
