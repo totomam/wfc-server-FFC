@@ -1,6 +1,7 @@
 package nas
 
 import (
+	"encoding/base64"
 	"encoding/binary"
 	"hash/crc32"
 	"net/http"
@@ -15,9 +16,11 @@ import (
 )
 
 var dlsActions = map[string]func(moduleName string, fields map[string][]byte) []byte{
-	"count":   dlsCount,
-	"balance": dlsBalance,
-	"package": dlsPackage,
+	"count":    dlsCount,
+	"list":     dlsList,
+	"contents": dlsContents,
+	"balance":  dlsBalance,
+	"package":  dlsPackage,
 }
 
 // pkgMaxLen is the client's package rx limit (PKG_MAX_LEN, docs/online/PACKAGE_WIRE.md in ffc-decomp).
@@ -61,15 +64,73 @@ func handleDownloadEndpoint(w http.ResponseWriter, r *http.Request) {
 	replyHTTPError(w, 400, "400 Bad Request")
 }
 
-func dlsCount(moduleName string, fields map[string][]byte) []byte {
-	dlcFolder := filepath.Join(dlcDir, string(fields["rhgamecd"]))
-
-	dir, err := os.ReadDir(dlcFolder)
+// dlcFiles lists the servable Bonus Data files in dlc/<rhgamecd>/, sorted by name: regular files only, names of
+// 1..32 chars without a leading dot (FFC parses the name with "%d" -> content id 1..64; docs/sessions/s74-online/
+// bonus_data.md in the ffc-decomp repo). count, list and contents all use this one view so they always agree.
+func dlcFiles(rhgamecd string) []os.DirEntry {
+	dir, err := os.ReadDir(filepath.Join(dlcDir, rhgamecd))
 	if err != nil {
-		return []byte{'0', 0}
+		return nil
 	}
+	var files []os.DirEntry
+	for _, e := range dir {
+		name := e.Name()
+		if !e.Type().IsRegular() || len(name) == 0 || len(name) > 32 || name[0] == '.' {
+			continue
+		}
+		files = append(files, e)
+	}
+	return files
+}
 
-	return append([]byte(strconv.Itoa(len(dir))), 0)
+func dlsCount(moduleName string, fields map[string][]byte) []byte {
+	return append([]byte(strconv.Itoa(len(dlcFiles(string(fields["rhgamecd"]))))), 0)
+}
+
+// dlsList answers action=list (offset, num): one line per file, "name\tB64(desc)\tattr1\tattr2\tattr3\tsize\r\n".
+// The client requires size == the byte length it later gets from action=contents.
+func dlsList(moduleName string, fields map[string][]byte) []byte {
+	files := dlcFiles(string(fields["rhgamecd"]))
+	offset, _ := strconv.Atoi(string(fields["offset"]))
+	num, err := strconv.Atoi(string(fields["num"]))
+	if err != nil || num <= 0 {
+		num = len(files)
+	}
+	if offset < 0 || offset > len(files) {
+		offset = len(files)
+	}
+	end := offset + num
+	if end > len(files) {
+		end = len(files)
+	}
+	var out []byte
+	for _, e := range files[offset:end] {
+		info, err := e.Info()
+		if err != nil {
+			continue
+		}
+		desc := base64.StdEncoding.EncodeToString([]byte("Bonus Data " + e.Name()))
+		out = append(out, []byte(e.Name()+"\t"+desc+"\t\t\t\t"+strconv.FormatInt(info.Size(), 10)+"\r\n")...)
+	}
+	return out
+}
+
+// dlsContents answers action=contents (contents = file name): the raw file bytes. Only names that dlcFiles lists are
+// served (no path separators, no traversal).
+func dlsContents(moduleName string, fields map[string][]byte) []byte {
+	rhgamecd := string(fields["rhgamecd"])
+	want := string(fields["contents"])
+	for _, e := range dlcFiles(rhgamecd) {
+		if e.Name() == want {
+			data, err := os.ReadFile(filepath.Join(dlcDir, rhgamecd, want))
+			if err != nil {
+				return nil
+			}
+			return data
+		}
+	}
+	logging.Error(moduleName, "Unknown Bonus Data file:", aurora.Cyan(want))
+	return nil
 }
 
 // dlsBalance serves the wire-format table from docs/online/BALANCE_WIRE.md (ffc-decomp repo) for the "balance"
