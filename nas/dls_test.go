@@ -12,10 +12,18 @@ func TestDlsListContents(t *testing.T) {
 	dlcDir = t.TempDir()
 	defer func() { dlcDir = old }()
 	d := filepath.Join(dlcDir, "VDEE")
-	os.MkdirAll(filepath.Join(d, "sub"), 0o755)
-	os.WriteFile(filepath.Join(d, "1"), []byte("Rock one."), 0o644)
-	os.WriteFile(filepath.Join(d, "3"), []byte("Rock three!"), 0o644)
-	os.WriteFile(filepath.Join(d, ".hidden"), []byte("x"), 0o644)
+	if err := os.MkdirAll(filepath.Join(d, "sub"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(d, "1"), []byte("Rock one."), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(d, "3"), []byte("Rock three!"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(d, ".hidden"), []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
 	f := map[string][]byte{"rhgamecd": []byte("VDEE")}
 	if got := string(dlsCount("t", f)); got != "2\x00" {
 		t.Fatalf("count %q", got)

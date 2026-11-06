@@ -51,11 +51,11 @@ var (
 func parseGet(r *http.Request, w http.ResponseWriter, requiredRole Role) (query url.Values, err error) {
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 
-	switch {
-	case r.Method == http.MethodGet:
+	switch r.Method {
+	case http.MethodGet:
 		break
 
-	case r.Method == http.MethodOptions:
+	case http.MethodOptions:
 		w.Header().Set("Access-Control-Allow-Methods", "GET, OPTIONS")
 		w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
 		w.WriteHeader(http.StatusNoContent)
@@ -88,11 +88,11 @@ func parseGet(r *http.Request, w http.ResponseWriter, requiredRole Role) (query 
 func parsePost(r *http.Request, w http.ResponseWriter, parsed any, requiredRole Role) error {
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 
-	switch {
-	case r.Method == http.MethodPost:
+	switch r.Method {
+	case http.MethodPost:
 		break
 
-	case r.Method == http.MethodOptions:
+	case http.MethodOptions:
 		w.Header().Set("Access-Control-Allow-Methods", "POST, OPTIONS")
 		w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
 		w.WriteHeader(http.StatusNoContent)

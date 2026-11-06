@@ -202,7 +202,7 @@ func (c *Connection) insertSakeRecordLimitedOnce(record SakeRecord, fieldsJson [
 	if err != nil {
 		return 0, err
 	}
-	defer tx.Rollback(c.ctx)
+	defer func() { _ = tx.Rollback(c.ctx) }()
 
 	_, err = tx.Exec(c.ctx, `SELECT pg_advisory_xact_lock(hashtextextended($1, 0))`,
 		strconv.Itoa(record.GameId)+"/"+record.TableId+"/"+strconv.Itoa(int(record.OwnerId)))

@@ -13,7 +13,7 @@ jobs:
       - uses: actions/checkout@v6
       - uses: actions/setup-go@v6
         with:
-          go-version: stable
+          go-version-file: go.mod   # 'stable' (newest Go) crashed golangci-lint v2.11 in go/types (s94)
       - name: golangci-lint
         uses: golangci/golangci-lint-action@v9
         with:

@@ -72,9 +72,10 @@ func syntheticField(record database.SakeRecord, field string) (CommonValue, bool
 		return CommonValue{XMLName: xml.Name{Local: "dateAndTimeValue"}, Value: record.UpdateTime.UTC().Format(DateAndTimeFormat)}, true
 	case "num_ratings", "sum_ratings", "my_rating":
 		v := record.NumRatings
-		if field == "sum_ratings" {
+		switch field {
+		case "sum_ratings":
 			v = record.SumRatings
-		} else if field == "my_rating" {
+		case "my_rating":
 			v = record.MyRating
 		}
 		return CommonValue{XMLName: xml.Name{Local: "intValue"}, Value: strconv.FormatInt(v, 10)}, true
