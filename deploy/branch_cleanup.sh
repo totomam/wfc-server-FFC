@@ -9,11 +9,13 @@ cd "${2:?list dir}"
 git fetch -q --prune origin '+refs/heads/*:refs/remotes/origin/*' '+refs/tags/*:refs/tags/*'
 del=(); tags=(); skip=0
 while read -r b sha; do
+  [[ -z "$b" || "$b" == \#* ]] && continue
   cur=$(git rev-parse -q --verify "refs/remotes/origin/$b") || { echo "gone   $b"; continue; }
   [ "$cur" = "$sha" ] || { echo "MOVED  $b (skip)"; skip=$((skip+1)); continue; }
   if [ "$(git rev-list --count origin/ffc.."$cur")" = 0 ]; then del+=("$b"); else echo "AHEAD  $b -> archive"; tags+=("$b"); fi
 done < merged.txt
 while read -r b sha; do
+  [[ -z "$b" || "$b" == \#* ]] && continue
   cur=$(git rev-parse -q --verify "refs/remotes/origin/$b") || { echo "gone   $b"; continue; }
   [ "$cur" = "$sha" ] || { echo "MOVED  $b (skip)"; skip=$((skip+1)); continue; }
   tags+=("$b")

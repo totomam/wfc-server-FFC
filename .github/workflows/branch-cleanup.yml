@@ -1,6 +1,9 @@
 # Branch cleanup (ffc-decomp human s94-online 2026-11-06). Lists dir holds merged.txt / archive.txt ("<branch> <sha>").
 name: branch-cleanup
 on:
+  push:
+    branches: [ffc]
+    paths: ["deploy/branch_cleanup/*.txt"]   # this fork's default branch is main: a list change on ffc runs it for real
   workflow_dispatch:
     inputs:
       dry_run:
@@ -21,4 +24,4 @@ jobs:
       - run: |
           git config user.name "github-actions"
           git config user.email "github-actions@users.noreply.github.com"
-          bash deploy/branch_cleanup.sh "${{ inputs.dry_run }}" "${{ inputs.lists }}"
+          bash deploy/branch_cleanup.sh "${{ inputs.dry_run || 'false' }}" "${{ inputs.lists || 'deploy/branch_cleanup' }}"
