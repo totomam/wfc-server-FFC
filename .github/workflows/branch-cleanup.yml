@@ -1,0 +1,24 @@
+# Branch cleanup (ffc-decomp human s94-online 2026-11-06). Lists dir holds merged.txt / archive.txt ("<branch> <sha>").
+name: branch-cleanup
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "true = only print what would happen"
+        default: "true"
+      lists:
+        description: "dir with merged.txt / archive.txt"
+        required: true
+permissions:
+  contents: write
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - run: |
+          git config user.name "github-actions"
+          git config user.email "github-actions@users.noreply.github.com"
+          bash deploy/branch_cleanup.sh "${{ inputs.dry_run }}" "${{ inputs.lists }}"
