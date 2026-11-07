@@ -100,4 +100,9 @@ Read-only JSON on the NAS HTTP port, no auth, CORS `*`; computed on read from `m
 
 ## Abuse limits (ffc-decomp ROADMAP #69, API part)
 - Public `/api/ffc/*` reads: per client IP 20 requests burst, 60/min refill (HTTP 429 + Retry-After); loaded match
-  rows cached 15 s per time window. Admin endpoints (secret) unlimited. Game protocols (GPCM/QR2/NATNEG) unchanged.
+  rows cached 15 s per time window. Admin endpoints (secret) unlimited.
+- Game protocols (package `ffclimit`, per client IP token buckets; burst, refill/s): GPCM new connections 20, 1/3 s
+  and login commands 20, 1/3 s (over: connection closed / login error); GPCM packets 200, 20/s; server browser 120,
+  10/s (over: connection closed); QR2 UDP 600, 100/s and NATNEG UDP 400, 60/s (over: dropped); NAS HTTP 120, 10/s and
+  SAKE HTTP 120, 10/s (over: 503). Sized for several consoles behind one home NAT (a two-console pair on one IP never
+  comes close). Refusal counts: `limited` in `/api/ffc/admin/dashboard`; first refusal per IP+rule per minute logged.

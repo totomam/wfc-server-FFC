@@ -13,6 +13,7 @@ import (
 	"unicode/utf16"
 	"wwfc/common"
 	"wwfc/database"
+	"wwfc/ffclimit"
 	"wwfc/logging"
 	"wwfc/qr2"
 
@@ -180,6 +181,11 @@ func (g *GameSpySession) login(command common.GameSpyCommand) {
 	if g.LoggedIn {
 		logging.Error(g.ModuleName, "Attempt to login twice")
 		g.replyError(ErrLogin)
+		return
+	}
+
+	if !ffclimit.Allow(ffclimit.GPCMLogin, ffclimit.IPOf(g.RemoteAddr)) {
+		g.replyError(ErrLoginConnectionFailed)
 		return
 	}
 

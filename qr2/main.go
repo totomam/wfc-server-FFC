@@ -8,6 +8,7 @@ import (
 	"time"
 	"wwfc/common"
 	"wwfc/database"
+	"wwfc/ffclimit"
 	"wwfc/logging"
 
 	"github.com/logrusorgru/aurora/v3"
@@ -105,6 +106,9 @@ func StartServer(reload bool) {
 			buf := make([]byte, 1024)
 			n, addr, err := conn.ReadFrom(buf)
 			if err != nil || n < 5 {
+				continue
+			}
+			if !ffclimit.Allow(ffclimit.QR2Packet, addr.(*net.UDPAddr).IP.String()) {
 				continue
 			}
 

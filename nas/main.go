@@ -5,10 +5,12 @@ import (
 	"net/http"
 	"regexp"
 	"strconv"
+	"strings"
 	"time"
 	"wwfc/api"
 	"wwfc/common"
 	"wwfc/database"
+	"wwfc/ffclimit"
 	"wwfc/gamestats"
 	"wwfc/logging"
 	"wwfc/race"
@@ -16,6 +18,8 @@ import (
 
 	"github.com/logrusorgru/aurora/v3"
 )
+
+var sakeHost = regexp.MustCompile(`(\.|^)sake\.(gs\.|gamespy\.com$)`)
 
 var (
 	serverName           string
@@ -131,6 +135,19 @@ func Shutdown() {
 }
 
 func handleRequest(w http.ResponseWriter, r *http.Request) {
+	// ROADMAP #69: per-IP limits for the game's HTTP traffic (the /api/ handlers have their own, admin = unlimited).
+	if !strings.HasPrefix(r.URL.Path, "/api/") {
+		rule := ffclimit.NASRequest
+		if sakeHost.MatchString(r.Host) {
+			rule = ffclimit.SAKE
+		}
+		if !ffclimit.Allow(rule, ffclimit.IPOf(r.RemoteAddr)) {
+			w.Header().Set("Retry-After", "5")
+			replyHTTPError(w, http.StatusServiceUnavailable, "503 Service Unavailable")
+			return
+		}
+	}
+
 	// Check for host-specific muxes
 	for regex, mux := range hostMuxes {
 		if regex.MatchString(r.Host) {

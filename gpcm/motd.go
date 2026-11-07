@@ -14,4 +14,3 @@ func GetMessageOfTheDay() (string, error) {
 
 	return string(contents), nil
 }
-

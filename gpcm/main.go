@@ -6,6 +6,7 @@ import (
 	"strings"
 	"wwfc/common"
 	"wwfc/database"
+	"wwfc/ffclimit"
 	"wwfc/logging"
 	"wwfc/qr2"
 
@@ -146,6 +147,10 @@ func CloseConnection(index uint64) {
 }
 
 func NewConnection(index uint64, address string) {
+	if !ffclimit.Allow(ffclimit.GPCMConnect, ffclimit.IPOf(address)) {
+		_ = common.CloseConnection(ServerName, index)
+		return
+	}
 	session := &GameSpySession{
 		ConnIndex:      index,
 		RemoteAddr:     address,
@@ -188,6 +193,10 @@ func HandlePacket(index uint64, data []byte) {
 
 	if session == nil {
 		logging.Error("GPCM", "Cannot find session for this connection index:", aurora.Cyan(index))
+		_ = common.CloseConnection(ServerName, index)
+		return
+	}
+	if !ffclimit.Allow(ffclimit.GPCMPacket, ffclimit.IPOf(session.RemoteAddr)) {
 		_ = common.CloseConnection(ServerName, index)
 		return
 	}

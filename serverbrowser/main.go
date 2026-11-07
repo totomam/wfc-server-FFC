@@ -5,6 +5,7 @@ import (
 	"encoding/gob"
 	"os"
 	"wwfc/common"
+	"wwfc/ffclimit"
 	"wwfc/logging"
 
 	"github.com/linkdata/deadlock"
@@ -79,6 +80,10 @@ func CloseConnection(index uint64) {
 
 func HandlePacket(index uint64, data []byte, address string) {
 	moduleName := "SB:" + address
+	if !ffclimit.Allow(ffclimit.SBPacket, ffclimit.IPOf(address)) {
+		_ = common.CloseConnection(ServerName, index)
+		return
+	}
 
 	mutex.RLock()
 	buffer := connBuffers[index]

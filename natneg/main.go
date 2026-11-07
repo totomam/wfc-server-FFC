@@ -11,6 +11,7 @@ import (
 	"sync/atomic"
 	"time"
 	"wwfc/common"
+	"wwfc/ffclimit"
 	"wwfc/logging"
 
 	"github.com/logrusorgru/aurora/v3"
@@ -142,6 +143,9 @@ func StartServer(reload bool) {
 			buffer := make([]byte, 1024)
 			size, addr, err := conn.ReadFrom(buffer)
 			if err != nil {
+				continue
+			}
+			if !ffclimit.Allow(ffclimit.NATNEG, ffclimit.IPOf(addr.String())) {
 				continue
 			}
 

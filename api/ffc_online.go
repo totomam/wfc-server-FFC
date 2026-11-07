@@ -5,6 +5,7 @@ import (
 	"strconv"
 	"time"
 	"wwfc/database"
+	"wwfc/ffclimit"
 	"wwfc/ffcstats"
 	"wwfc/gpcm"
 	"wwfc/qr2"
@@ -97,5 +98,6 @@ func HandleFFCDashboard(w http.ResponseWriter, r *http.Request) {
 		"matches_24h":     last24,
 		"mismatches":      len(flagged),
 		"mismatch_counts": database.FlaggedCounts(flagged),
+		"limited":         ffclimit.Counts(), // #69: refused packets/requests per protocol rule since start
 	})
 }
