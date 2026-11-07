@@ -28,3 +28,9 @@ Read-only JSON on the NAS HTTP port, no auth, CORS `*`; computed on read from `m
   second reporter). A lone (`single`) report sends nothing.
 - Admin list: `GET /api/ffc/admin/flagged?secret=<apiSecret>&status=mismatch|single|both&days=30&limit=100` ->
   flagged rows (newest first, which side reported) + mismatch count per profile. Act with `/api/ban` (reason required).
+
+## Live counter + admin dashboard (ffc-decomp ROADMAP #30, #33, #72)
+- `GET /api/ffc/online` (public, counts only): `online` (logged in), `matchmaking` (QR2 sessions), `in_battle`,
+  `modded` / `vanilla` (QR2 `dwc_mver` != / == 90). For a web/Discord widget (#39).
+- `GET /api/ffc/admin/dashboard?secret=<apiSecret>&days=14`: online players (pid, name, GP status), match activity
+  (per UTC hour + per day, queue split, status counts, peak hour), matches in 24 h, mismatch count per profile.
