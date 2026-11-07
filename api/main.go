@@ -39,4 +39,9 @@ func RegisterHandlers(mux *http.ServeMux) {
 	mux.HandleFunc("/api/unban", HandleUnban)
 	mux.HandleFunc("/api/kick", HandleKick)
 	mux.HandleFunc("/api/baninfo", HandleBanInfo)
+	mux.HandleFunc("/api/ffc/leaderboard", HandleFFCLeaderboard)
+	mux.HandleFunc("/api/ffc/vivosaurs", HandleFFCVivosaurs)
+	mux.HandleFunc("/api/ffc/h2h", HandleFFCH2H)
+	mux.HandleFunc("/api/ffc/matches", HandleFFCMatches)
+	mux.HandleFunc("/api/ffc/seasons", HandleFFCSeasons)
 }

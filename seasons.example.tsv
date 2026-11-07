@@ -1,0 +1,2 @@
+# FFC leaderboard seasons (api/ffc.go): id<TAB>name<TAB>start date (UTC). Copy to seasons.tsv to enable.
+s1	Launch season	2026-11-01

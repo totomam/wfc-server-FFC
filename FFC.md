@@ -10,3 +10,13 @@ Branch `ffc` = upstream `main` + two FFC patches:
 Tests: `go test ./...`; game-side conformance test and docs live in the FFC decomp repo (`docs/online/`).
 Plan, hosting needs and open items (DS HTTPS certificate): FFC decomp `docs/online/BACKUP_WIILINK.md`.
 Never commit keys or certificates to this repo.
+
+## Public stats API (leaderboard, ffc-decomp ROADMAP #21-#27, #32, #67)
+Read-only JSON on the NAS HTTP port, no auth, CORS `*`; computed on read from `match_results` (package `ffcstats`):
+- `/api/ffc/leaderboard?min=N` -- W/L/D + Elo (start 1000, K 32, draw 0.5, chronological replay), rank.
+- `/api/ffc/vivosaurs` -- pick-rate + win-rate per creature id. `/api/ffc/h2h?a=PID&b=PID` -- head-to-head.
+- `/api/ffc/matches?pid=PID&limit=N` -- match log, newest first. `/api/ffc/seasons` -- seasons.tsv.
+- Common: `season=<id>|current` or `from`/`to=YYYY-MM-DD` (UTC, `to` exclusive); `queue=modded|vanilla`;
+  `status=all` also counts `single`/`mismatch` rows (default: only `confirmed` = both consoles agreed).
+- Seasons / resets: `seasons.tsv` in the server's working directory, lines `<id>\t<name>\t<YYYY-MM-DD start>`
+  (example `seasons.example.tsv`); a season ends where the next starts. No file = no seasons (all-time only).
