@@ -88,6 +88,16 @@ type SakeTable struct {
 	Fields map[string]SakeFieldDefinition
 }
 
+// isFFCAiPolicy: dental2ds ai_1..ai_4 = the team's battle AI policy per situation (FFC decomp s101-online,
+// docs/online/bosses/README.md). The opponent's console uses value+1 as a row of its 17-row tactics table
+// (func_ov001_0218cab0 -> func_ov002_021c95bc), so an out-of-range value from a modified client would make OTHER
+// players' consoles read past the table. The in-game picker offers 6 policies (0..5); server-made boss records
+// (written to the database directly, tools/online_ghost.py boss) may use 0..16.
+func isFFCAiPolicy(value string) bool {
+	v, err := strconv.Atoi(value)
+	return err == nil && v >= 0 && v <= 5
+}
+
 var TableDefinitions = map[string]SakeTable{
 	// Fossil Fighters: Champions (dental2ds) Team Plaza: one team record per profile (EnforceLimit makes CreateRecord enforce LimitPerOwner), public search/rate (FFC decomp docs/online/TEAM_PLAZA.md).
 	"dental2ds/tbl_main_na": {
@@ -110,10 +120,10 @@ var TableDefinitions = map[string]SakeTable{
 			"player_symbol": {Type: database.SakeFieldTypeInt},
 			"team_name":     {Type: database.SakeFieldTypeUnicodeString},
 			"formation":     {Type: database.SakeFieldTypeInt},
-			"ai_1":          {Type: database.SakeFieldTypeInt},
-			"ai_2":          {Type: database.SakeFieldTypeInt},
-			"ai_3":          {Type: database.SakeFieldTypeInt},
-			"ai_4":          {Type: database.SakeFieldTypeInt},
+			"ai_1":          {Type: database.SakeFieldTypeInt, IsValidFunc: isFFCAiPolicy},
+			"ai_2":          {Type: database.SakeFieldTypeInt, IsValidFunc: isFFCAiPolicy},
+			"ai_3":          {Type: database.SakeFieldTypeInt, IsValidFunc: isFFCAiPolicy},
+			"ai_4":          {Type: database.SakeFieldTypeInt, IsValidFunc: isFFCAiPolicy},
 			"team_rank":     {Type: database.SakeFieldTypeInt},
 			"group1":        {Type: database.SakeFieldTypeInt},
 			"group2":        {Type: database.SakeFieldTypeInt},
