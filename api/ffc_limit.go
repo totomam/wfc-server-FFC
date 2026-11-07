@@ -90,7 +90,8 @@ var (
 	ffcCache   = map[[2]int64]ffcCacheEntry{}
 )
 
-// ffcLoadMatchesCached: db.LoadMatches for the window, reused for ffcCacheTTL. Callers only filter/read the rows.
+// ffcLoadMatchesCached: db.LoadMatches for the window minus banned.json violations (#75), reused for ffcCacheTTL.
+// Callers only filter/read the rows.
 func ffcLoadMatchesCached(from, to time.Time) ([]ffcstats.Match, error) {
 	key := [2]int64{from.UnixNano(), to.UnixNano()}
 	now := ffcNow()
@@ -104,6 +105,7 @@ func ffcLoadMatchesCached(from, to time.Time) ([]ffcstats.Match, error) {
 	if err != nil {
 		return nil, err
 	}
+	rows = ffcstats.DropBanned(rows, ffcBanRules()) // #75: banned-team matches never reach public stats
 	ffcCacheMu.Lock()
 	for k, e := range ffcCache {
 		if now.Sub(e.at) >= ffcCacheTTL {

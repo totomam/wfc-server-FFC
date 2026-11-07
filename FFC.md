@@ -120,3 +120,11 @@ Read-only JSON on the NAS HTTP port, no auth, CORS `*`; computed on read from `m
   10/s (over: connection closed); QR2 UDP 600, 100/s and NATNEG UDP 400, 60/s (over: dropped); NAS HTTP 120, 10/s and
   SAKE HTTP 120, 10/s (over: 503). Sized for several consoles behind one home NAT (a two-console pair on one IP never
   comes close). Refusal counts: `limited` in `/api/ffc/admin/dashboard`; first refusal per IP+rule per minute logged.
+
+## Banned-vivosaur lists (ffc-decomp ROADMAP #75, server part, s103)
+- `banned.json` next to the server (example `banned.example.json`): `[{"id","queue":"ranked|casual|all","modded":null|true|false,
+  "creatures":[ids],"start","end"}]` (<= 64 rules; start/end optional RFC 3339). A match where either team holds a
+  banned creature (matching queue/modded/window) is left out of every public stat (leaderboard, Elo, challenges,
+  rewards, news); re-read with the 15 s match cache. The game still lets the battle happen (client refusal = package work).
+- `GET /api/ffc/banned` (public): the rules. `GET /api/ffc/admin/banned?secret=…[&days=N]` (1..400, default 30):
+  rules + violations `{match, rule, pids, creatures}` (the side(s) that broke it).
