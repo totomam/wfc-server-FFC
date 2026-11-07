@@ -20,6 +20,7 @@ type Match struct {
 	Draw      bool      `json:"draw"`
 	TimeUp    bool      `json:"time_up"`
 	Modded    bool      `json:"modded"`
+	MatchVer  uint32    `json:"match_ver"` // dwc_mver of the match: 90 vanilla, else 0x40000000|rules crc (#29)
 	NameA     string    `json:"name_a"`
 	NameB     string    `json:"name_b"`
 	TeamA     []Pick    `json:"team_a"`

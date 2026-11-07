@@ -17,6 +17,7 @@ Read-only JSON on the NAS HTTP port, no auth, CORS `*`; computed on read from `m
 - `/api/ffc/vivosaurs` -- pick-rate + win-rate per creature id. `/api/ffc/h2h?a=PID&b=PID` -- head-to-head.
 - `/api/ffc/matches?pid=PID&limit=N` -- match log, newest first. `/api/ffc/seasons` -- seasons.tsv.
 - `/api/ffc/teams?min=N&limit=N` -- team compositions (creature-id set) + creature pairs: picks, W/L/D, rates (#24).
+- `/api/ffc/balance?top=N` -- matches grouped by rules version (`match_ver`: 90 vanilla, else table+package crc), first/last match + vivosaur rates per version: the effect of each published table (#29).
 - Common: `season=<id>|current` or `from`/`to=YYYY-MM-DD` (UTC, `to` exclusive); `queue=modded|vanilla`;
   `status=all` also counts `single`/`mismatch` rows (default: only `confirmed` = both consoles agreed).
 - Seasons / resets: `seasons.tsv` in the server's working directory, lines `<id>\t<name>\t<YYYY-MM-DD start>`

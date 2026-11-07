@@ -45,6 +45,7 @@ func RegisterHandlers(mux *http.ServeMux) {
 	mux.HandleFunc("/api/ffc/matches", ffcLimited(HandleFFCMatches))
 	mux.HandleFunc("/api/ffc/seasons", ffcLimited(HandleFFCSeasons))
 	mux.HandleFunc("/api/ffc/teams", ffcLimited(HandleFFCTeams))
+	mux.HandleFunc("/api/ffc/balance", ffcLimited(HandleFFCBalance))
 	mux.HandleFunc("/api/ffc/admin/flagged", HandleFFCFlagged)
 	mux.HandleFunc("/api/ffc/online", ffcLimited(HandleFFCOnline))
 	mux.HandleFunc("/api/ffc/admin/dashboard", HandleFFCDashboard)

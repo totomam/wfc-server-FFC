@@ -246,3 +246,16 @@ func HandleFFCTeams(w http.ResponseWriter, r *http.Request) {
 	}
 	replyOK(w, map[string]any{"season": win.season, "teams_total": total, "teams": teams, "pairs": pairs})
 }
+
+// HandleFFCBalance (#29): matches grouped by rules version (dwc_mver), vivosaur rates per version, ?top=N (default 20).
+func HandleFFCBalance(w http.ResponseWriter, r *http.Request) {
+	q, ms, win, ok := ffcLoad(w, r)
+	if !ok {
+		return
+	}
+	top, err := strconv.Atoi(q.Get("top"))
+	if err != nil || top < 0 || top > 210 {
+		top = 20
+	}
+	replyOK(w, map[string]any{"season": win.season, "versions": ffcstats.BalanceImpact(ms, top)})
+}

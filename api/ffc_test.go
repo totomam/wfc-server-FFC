@@ -81,6 +81,12 @@ func TestFFCHandlersPostgres(t *testing.T) {
 	if tm["teams_total"].(float64) < 2 || len(tm["teams"].([]any)) < 1 {
 		t.Fatal(tm)
 	}
+	bal := get("balance", func(rec *httptest.ResponseRecorder) {
+		HandleFFCBalance(rec, httptest.NewRequest("GET", "/api/ffc/balance?status=all", nil))
+	})
+	if len(bal["versions"].([]any)) < 1 {
+		t.Fatal(bal)
+	}
 	// #28 admin list: needs the API secret; lists mismatch rows (database live test leaves one).
 	apiSecret = "s3cret"
 	rec = httptest.NewRecorder()
