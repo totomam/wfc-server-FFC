@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 	"wwfc/common"
+	"wwfc/ffcmatch"
 	"wwfc/logging"
 
 	"github.com/logrusorgru/aurora/v3"
@@ -111,6 +112,9 @@ func processResvOK(moduleName string, matchVersion int, reservation common.Match
 	}
 
 	logging.Notice(moduleName, "New player", aurora.BrightCyan(destination.Data["dwc_pid"]), "in group", aurora.Cyan(group.GroupName))
+	if group.GameName == ffcmatch.GameName && group.MatchType == "0" && group.server != nil {
+		ffcmatch.NoteMatch(group.server.Data["dwc_pid"], destination.Data["dwc_pid"])
+	}
 
 	logging.Event(
 		"group_joined",

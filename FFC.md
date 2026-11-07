@@ -89,6 +89,15 @@ Read-only JSON on the NAS HTTP port, no auth, CORS `*`; computed on read from `m
 - `/api/ffc/rewards`: champions of finished tournaments + top 3 by Elo (>= 5 confirmed ranked games) of every finished
   season. For a Discord bot to assign roles (#43); the bot itself (and its token) lives outside this server.
 
+## Matchmaking tuning (ffc-decomp ROADMAP #34, server-only)
+- Battle with Anyone (`dwc_mtype = 0` server-browser queries, package `ffcmatch`): the client already reserves the
+  host with the closest QR2 `Rank` (its best saved team); the server narrows WHICH hosts it lists while you search:
+  Rank within `rank_window` + `rank_widen_per_sec` x seconds, same region letter of the game code (VDEE/VDEP/VDEJ)
+  for `region_sec`, not your last opponent for `rematch_sec`; everything off after `open_after_sec` (default 60 s).
+  A pause > 30 s between queries starts a new search. Friend battles and self lookups untouched.
+- Settings: built-in defaults (`ffc_match.example.json`); copy to `ffc_match.json` in the server working dir to change
+  them (re-read within 5 s of a change; `"enabled": false` = stock behaviour).
+
 ## Abuse limits (ffc-decomp ROADMAP #69, API part)
 - Public `/api/ffc/*` reads: per client IP 20 requests burst, 60/min refill (HTTP 429 + Retry-After); loaded match
   rows cached 15 s per time window. Admin endpoints (secret) unlimited. Game protocols (GPCM/QR2/NATNEG) unchanged.

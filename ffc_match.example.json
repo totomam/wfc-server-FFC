@@ -1,0 +1,10 @@
+{
+  "enabled": true,
+  "rank_window": 2,
+  "rank_widen_per_sec": 0.5,
+  "region_sec": 20,
+  "rematch_sec": 30,
+  "rematch_memory_sec": 600,
+  "open_after_sec": 60,
+  "default_rank": 10
+}

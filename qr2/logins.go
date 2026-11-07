@@ -115,3 +115,17 @@ func loadLogins() error {
 
 	return nil
 }
+
+// GameCodeOf returns the login game code of a profile ("" if not logged in). Used by ffcmatch region preference.
+func GameCodeOf(pid string) string {
+	id, err := strconv.ParseUint(pid, 10, 32)
+	if err != nil {
+		return ""
+	}
+	mutex.Lock()
+	defer mutex.Unlock()
+	if login, ok := logins[uint32(id)]; ok {
+		return login.GameCode
+	}
+	return ""
+}

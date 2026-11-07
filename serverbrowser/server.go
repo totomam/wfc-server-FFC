@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"strings"
 	"wwfc/common"
+	"wwfc/ffcmatch"
 	"wwfc/logging"
 	"wwfc/qr2"
 
@@ -178,7 +179,11 @@ func handleServerListRequest(moduleName string, connIndex uint64, address string
 			// Self lookup is handled differently
 			servers = filterSelfLookup(moduleName, qr2.GetSessionServers(), queryGame, match[1], callerPublicIP)
 		} else {
-			servers = filterServers(moduleName, qr2.GetSessionServers(), queryGame, filter)
+			all := qr2.GetSessionServers()
+			servers = filterServers(moduleName, all, queryGame, filter)
+			if queryGame == ffcmatch.GameName {
+				servers = ffcTune(moduleName, all, servers, filter)
+			}
 		}
 	}
 
