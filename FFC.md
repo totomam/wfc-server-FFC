@@ -47,6 +47,12 @@ Read-only JSON on the NAS HTTP port, no auth, CORS `*`; computed on read from `m
   printable ASCII + newlines, <= 1023 chars, atomic), `POST {"secret","id","delete":true}` removes it. Served by the
   existing Nd count/list/contents. Each id reaches a save ONCE (the game flags it), so every announcement needs a new
   id; ids 1..7 also give fossil rocks 600..606 (empty in the USA ROM), ids 8..64 rock id 0 (verify in game first).
+- s103 #76 news: ids 65..96 = NEWS (admin, same API): a stock game skips them; a game running the modded package
+  (ffc-decomp docs/online/NEWS.md, 2 ov007 sites) shows them on EVERY Bonus Data visit, no flag, no rock.
+- Generated per console (nas/dls_news.go + api/ffc_news.go; Nd `userid` -> the console's oldest VDEE profile, #53
+  links): `97` your ranked row (current season of seasons.tsv, else all time: rank, Elo, W/L/D), `98` top 5 (>= 5
+  matches), `99` active challenges.json entries with your progress. Listed FIRST (the game reads <= 64 entries); the
+  text is cached 60 s per console so list size == contents length. A file named 97..99 on disk is hidden.
 
 ## Ranked vs casual (ffc-decomp ROADMAP #35, server-only)
 - Each result row gets `queue` from the QR2 group holding both players at report time: Battle with Anyone (dwc_mtype

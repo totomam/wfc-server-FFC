@@ -22,7 +22,7 @@ func TestFFCBonusHandler(t *testing.T) {
 	if c, b := post(`{"secret":"s3cret","id":9,"text":"Season 2!"}`); c != 200 {
 		t.Fatal(c, b)
 	}
-	if c, b := post(`{"secret":"s3cret","id":99,"text":"x"}`); c != 400 || !strings.Contains(b, "1..64") {
+	if c, b := post(`{"secret":"s3cret","id":99,"text":"x"}`); c != 400 || !strings.Contains(b, "65..96") {
 		t.Fatal(c, b)
 	}
 	rec := httptest.NewRecorder()

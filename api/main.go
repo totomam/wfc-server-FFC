@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"wwfc/common"
 	"wwfc/database"
+	"wwfc/ffcbonus"
 )
 
 var (
@@ -20,6 +21,7 @@ func StartServer(reload bool) {
 
 	// Start SQL
 	db = database.Start(config)
+	ffcbonus.NewsSource = ffcNews // #76 in-game news (ffc_news.go)
 
 	db.RegisterEvents(config, []string{
 		"profile_kicked",

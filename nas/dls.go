@@ -85,13 +85,13 @@ func dlcFiles(rhgamecd string) []os.DirEntry {
 }
 
 func dlsCount(moduleName string, fields map[string][]byte) []byte {
-	return append([]byte(strconv.Itoa(len(dlcFiles(string(fields["rhgamecd"]))))), 0)
+	return append([]byte(strconv.Itoa(len(dlcView(fields)))), 0)
 }
 
 // dlsList answers action=list (offset, num): one line per file, "name\tB64(desc)\tattr1\tattr2\tattr3\tsize\r\n".
 // The client requires size == the byte length it later gets from action=contents.
 func dlsList(moduleName string, fields map[string][]byte) []byte {
-	files := dlcFiles(string(fields["rhgamecd"]))
+	files := dlcView(fields)
 	offset, _ := strconv.Atoi(string(fields["offset"]))
 	num, err := strconv.Atoi(string(fields["num"]))
 	if err != nil || num <= 0 {
@@ -106,24 +106,20 @@ func dlsList(moduleName string, fields map[string][]byte) []byte {
 	}
 	var out []byte
 	for _, e := range files[offset:end] {
-		info, err := e.Info()
-		if err != nil {
-			continue
-		}
-		desc := base64.StdEncoding.EncodeToString([]byte("Bonus Data " + e.Name()))
-		out = append(out, []byte(e.Name()+"\t"+desc+"\t\t\t\t"+strconv.FormatInt(info.Size(), 10)+"\r\n")...)
+		desc := base64.StdEncoding.EncodeToString([]byte("Bonus Data " + e.name))
+		out = append(out, []byte(e.name+"\t"+desc+"\t\t\t\t"+strconv.FormatInt(e.size, 10)+"\r\n")...)
 	}
 	return out
 }
 
-// dlsContents answers action=contents (contents = file name): the raw file bytes. Only names that dlcFiles lists are
+// dlsContents answers action=contents (contents = file name): the raw file bytes. Only names that dlcView lists are
 // served (no path separators, no traversal).
 func dlsContents(moduleName string, fields map[string][]byte) []byte {
 	rhgamecd := string(fields["rhgamecd"])
 	want := string(fields["contents"])
-	for _, e := range dlcFiles(rhgamecd) {
-		if e.Name() == want {
-			data, err := os.ReadFile(filepath.Join(dlcDir, rhgamecd, want))
+	for _, e := range dlcView(fields) {
+		if e.name == want {
+			data, err := e.read(rhgamecd)
 			if err != nil {
 				return nil
 			}

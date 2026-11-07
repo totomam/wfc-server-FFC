@@ -4,6 +4,10 @@
 // a per-save "received" flag for that id, so each id reaches a save ONCE. Ids 1..7 also give fossil rocks 600..606
 // (empty records in the USA ROM), ids 8..64 map to rock id 0 (effect not verified in game; ffc-decomp
 // docs/sessions/s74-online/bonus_data.md).
+//
+// s103-online (#76 news): ids 65..96 are NEWS slots. A stock game skips them (its id check is 1..64); a game running
+// the modded package (ffc-decomp docs/online/NEWS.md, ov007 sites) shows them on EVERY Bonus Data visit, with no
+// flag and no rock. Ids 97..99 are generated per player by the server (nas NewsSource) and cannot be written here.
 package ffcbonus
 
 import (
@@ -20,14 +24,25 @@ var Dir = "./dlc"
 const (
 	MaxText = 0x3ff // the game's message buffer
 	MinID   = 1
-	MaxID   = 64
+	MaxID   = 96 // 1..64 one-shot messages, 65..96 news (NewsMin)
+	NewsMin = 65
 )
 
 var (
-	ErrID   = errors.New("id must be 1..64")
+	ErrID   = errors.New("id must be 1..64 (message) or 65..96 (news)")
 	ErrText = errors.New("text must be 1..1023 printable ASCII characters (newlines allowed)")
 	ErrCode = errors.New("bad game code")
 )
+
+// NewsItem is one generated Bonus Data file: Name = decimal id 97..99, Body = ASCII text (<= 0x3ff bytes).
+type NewsItem struct {
+	Name string
+	Body []byte
+}
+
+// NewsSource returns the generated items for one console (the Nd userid field), or nil; set by the api package
+// (ffc_news.go), read by the NAS (nas/dls_news.go). nil = no generated news.
+var NewsSource func(gamecd string, userID uint64) []NewsItem
 
 type Message struct {
 	ID   int    `json:"id"`

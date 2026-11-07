@@ -191,3 +191,22 @@ func jsonEqual(a, b []byte) bool {
 	ya, _ := json.Marshal(y)
 	return bytes.Equal(xa, ya)
 }
+
+// ProfilesOfUser: the profiles of one NAS user id (console) whose gsbrcd starts with gamecd (FFC "VDEE"), oldest
+// first (#76 news: the Bonus Data request carries only the userid).
+func (c *Connection) ProfilesOfUser(userID uint64, gamecd string) ([]uint32, error) {
+	rows, err := c.pool.Query(c.ctx, `SELECT profile_id FROM users WHERE user_id = $1 AND gsbrcd LIKE $2 || '%' ORDER BY profile_id`, userID, gamecd)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []uint32
+	for rows.Next() {
+		var p int64
+		if err := rows.Scan(&p); err != nil {
+			return nil, err
+		}
+		out = append(out, uint32(p))
+	}
+	return out, rows.Err()
+}

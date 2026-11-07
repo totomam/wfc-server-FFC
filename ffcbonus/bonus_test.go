@@ -31,7 +31,7 @@ func TestBonusMessages(t *testing.T) {
 		id   int
 		text string
 		want error
-	}{{0, "x", ErrID}, {65, "x", ErrID}, {5, "", ErrText}, {5, strings.Repeat("a", MaxText+1), ErrText},
+	}{{0, "x", ErrID}, {97, "x", ErrID}, {5, "", ErrText}, {5, strings.Repeat("a", MaxText+1), ErrText},
 		{5, "tab\there", ErrText}, {5, "caf\xc3\xa9", ErrText}} {
 		if err := Set("VDEE", c.id, c.text); err != c.want {
 			t.Fatal(c.id, err)
