@@ -329,6 +329,82 @@ func HandleFFCTournaments(w http.ResponseWriter, r *http.Request) {
 	replyOK(w, map[string]any{"tournaments": bs})
 }
 
+// Challenges (ffc-decomp ROADMAP #73 server part): challenges.json next to the server (ffcstats.Challenge).
+// GET /api/ffc/challenges -> every challenge with progress from confirmed match_results (canonical profiles, #53);
+// ?id=X one challenge; ?pid=N only that player's row in each; ?active=1 only running ones. Re-read on every request.
+var ffcChallengesFile = "challenges.json"
+
+func ffcChallenges() []ffcstats.Challenge {
+	f, err := os.Open(ffcChallengesFile)
+	if err != nil {
+		return nil
+	}
+	defer f.Close()
+	cs, err := ffcstats.ParseChallenges(f)
+	if err != nil {
+		return nil
+	}
+	return cs
+}
+
+func ffcChallengeResults(cs []ffcstats.Challenge, now time.Time) ([]ffcstats.ChallengeResult, error) {
+	out := []ffcstats.ChallengeResult{}
+	links := ffcPlayerLinks()
+	for _, c := range cs {
+		ms, err := ffcLoadMatchesCached(c.Start, c.End)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, ffcstats.EvalChallenge(c, ffcstats.ApplyLinks(ffcstats.Filter(ms, nil, c.Start, c.End, nil), links), now))
+	}
+	return out, nil
+}
+
+func HandleFFCChallenges(w http.ResponseWriter, r *http.Request) {
+	q, err := parseGet(r, w, RoleNone)
+	if err != nil {
+		return
+	}
+	now := time.Now().UTC()
+	cs := ffcChallenges()
+	sel := []ffcstats.Challenge{}
+	for _, c := range cs {
+		if id := q.Get("id"); id != "" && c.ID != id {
+			continue
+		}
+		if q.Get("active") == "1" && (now.Before(c.Start) || !now.Before(c.End)) {
+			continue
+		}
+		sel = append(sel, c)
+	}
+	if id := q.Get("id"); id != "" && len(sel) == 0 {
+		replyError(w, http.StatusNotFound, "challenge_not_found")
+		return
+	}
+	rs, err := ffcChallengeResults(sel, now)
+	if err != nil {
+		replyError(w, http.StatusInternalServerError, "database_error")
+		return
+	}
+	if q.Get("pid") != "" {
+		pid, ok := qPid(q, "pid")
+		if !ok {
+			replyError(w, http.StatusBadRequest, "bad_pid")
+			return
+		}
+		for i := range rs {
+			mine := []ffcstats.ChallengeProgress{}
+			for _, p := range rs[i].Players {
+				if p.Pid == pid {
+					mine = append(mine, p)
+				}
+			}
+			rs[i].Players = mine
+		}
+	}
+	replyOK(w, map[string]any{"challenges": rs})
+}
+
 // Rewards feed (ffc-decomp ROADMAP #43 server part): who earned a reward, for a Discord bot to assign roles.
 // GET /api/ffc/rewards -> champions of finished tournaments + the top 3 (Elo, >= 5 confirmed ranked games) of every
 // finished season (seasons.tsv). No Discord token lives on the server; the bot polls this.

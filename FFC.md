@@ -98,6 +98,14 @@ Read-only JSON on the NAS HTTP port, no auth, CORS `*`; computed on read from `m
 - Settings: built-in defaults (`ffc_match.example.json`); copy to `ffc_match.json` in the server working dir to change
   them (re-read within 5 s of a change; `"enabled": false` = stock behaviour).
 
+## Challenges (ffc-decomp ROADMAP #73, server part)
+- `challenges.json` next to the server (`challenges.example.json`; re-read per request): id, title, start/end (UTC),
+  kind `games` | `wins` | `games_with` | `wins_with` (+ `creature` id), `target`, optional `queue` (ranked default,
+  casual, all), `modded` (true/false), `reward` (text; admins hand rewards out).
+- `GET /api/ffc/challenges` (public, rate limited): every challenge with `active`, `completed` and per-player
+  `count`/`done`/`completed_at` from confirmed results (linked profiles = one player); `?id=`, `?pid=`, `?active=1`.
+- In game: announce a challenge with a Bonus Data message (#96); an in-game challenge/news screen is a package item.
+
 ## Abuse limits (ffc-decomp ROADMAP #69, API part)
 - Public `/api/ffc/*` reads: per client IP 20 requests burst, 60/min refill (HTTP 429 + Retry-After); loaded match
   rows cached 15 s per time window. Admin endpoints (secret) unlimited.

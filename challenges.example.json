@@ -1,0 +1,6 @@
+[
+  {"id": "2026-w45-aeros", "title": "Win 3 ranked battles with Aeros in your team", "start": "2026-11-09T00:00:00Z",
+   "end": "2026-11-16T00:00:00Z", "kind": "wins_with", "creature": 102, "target": 3, "reward": "Discord role Aeros Ace"},
+  {"id": "2026-11-10-daily", "title": "Play 5 battles today", "start": "2026-11-10T00:00:00Z",
+   "end": "2026-11-11T00:00:00Z", "kind": "games", "target": 5, "queue": "all"}
+]
