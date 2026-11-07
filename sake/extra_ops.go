@@ -350,9 +350,10 @@ func rateRecord(moduleName string, profileId uint32, gameInfo common.GameInfo, r
 	case pgx.ErrNoRows:
 		return resp(ResultRecordNotFound, 0, 0)
 	case database.ErrSakeOwnRecord:
-		// There is no result code for "own record" in the SAKE protocol; NotRateable is the closest
-		// (not verified against the real server).
-		return resp(ResultNotRateable, 0, 0)
+		// There is no result code for "own record" in the SAKE protocol. FFC (dental2ds) shows
+		// "Communication error 41068" for NotRateable after battling its own Team Plaza team, but accepts
+		// AlreadyRated (FFC decomp s101-online, melonDS), so answer that: nothing is stored either way.
+		return resp(ResultAlreadyRated, num, sum)
 	case database.ErrSakeAlreadyRated:
 		return resp(ResultAlreadyRated, num, sum)
 	default:
