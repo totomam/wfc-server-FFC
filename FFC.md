@@ -20,3 +20,11 @@ Read-only JSON on the NAS HTTP port, no auth, CORS `*`; computed on read from `m
   `status=all` also counts `single`/`mismatch` rows (default: only `confirmed` = both consoles agreed).
 - Seasons / resets: `seasons.tsv` in the server's working directory, lines `<id>\t<name>\t<YYYY-MM-DD start>`
   (example `seasons.example.tsv`); a season ends where the next starts. No file = no seasons (all-time only).
+
+## Match alerts + webhook feed (ffc-decomp ROADMAP #28, #66)
+- Every stored report logs `Match result <id> <status>`; a contradicting pair also logs a WARN `MISMATCH on <field>`.
+- Events (config.xml `<eventReporting><discord><webhook><eventTypes>`, or `all`): `match_result` once per match when
+  the 2nd console confirms it (players, result, queue, teams); `match_mismatch` when the reports disagree (+ field,
+  second reporter). A lone (`single`) report sends nothing.
+- Admin list: `GET /api/ffc/admin/flagged?secret=<apiSecret>&status=mismatch|single|both&days=30&limit=100` ->
+  flagged rows (newest first, which side reported) + mismatch count per profile. Act with `/api/ban` (reason required).

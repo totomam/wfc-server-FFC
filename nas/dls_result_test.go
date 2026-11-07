@@ -20,18 +20,24 @@ const (
 )
 
 type fakeResultDB struct {
-	owners  map[uint32]uint64
-	stored  []database.MatchReport
-	lastErr error
+	owners   map[uint32]uint64
+	stored   []database.MatchReport
+	lastErr  error
+	status   string // returned status ("" = single)
+	mismatch string
 }
 
 func (f *fakeResultDB) UserOwnsProfile(u uint64, p uint32) (bool, error) {
 	return f.owners[p] == u, nil
 }
 func (f *fakeResultDB) ProfileExists(p uint32) (bool, error) { _, ok := f.owners[p]; return ok, nil }
-func (f *fakeResultDB) StoreMatchReport(r database.MatchReport) (int64, string, error) {
+func (f *fakeResultDB) StoreMatchReportDetail(r database.MatchReport) (database.StoreResult, error) {
 	f.stored = append(f.stored, r)
-	return int64(len(f.stored)), "single", f.lastErr
+	st := f.status
+	if st == "" {
+		st = "single"
+	}
+	return database.StoreResult{ID: int64(len(f.stored)), Status: st, Mismatch: f.mismatch}, f.lastErr
 }
 
 func goldenFields(t *testing.T) map[string][]byte {

@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"time"
 
+	"wwfc/database"
 	"wwfc/ffcstats"
 )
 
@@ -168,4 +169,56 @@ func HandleFFCSeasons(w http.ResponseWriter, r *http.Request) {
 		ss = []ffcstats.Season{}
 	}
 	replyOK(w, map[string]any{"seasons": ss})
+}
+
+// HandleFFCFlagged (admin, ffc-decomp ROADMAP #28): match_results rows that need a moderator, newest first, plus the
+// mismatch count per profile. GET /api/ffc/admin/flagged?secret=<apiSecret>&status=mismatch (default) | single |
+// both &days=N (default 30) &limit=N (default 100, max 1000). Follow up with /api/ban (reason required, #37).
+func HandleFFCFlagged(w http.ResponseWriter, r *http.Request) {
+	q, err := parseGet(r, w, RoleModerator)
+	if err != nil {
+		return
+	}
+	statuses, ok := ffcFlaggedStatuses(q.Get("status"))
+	if !ok {
+		replyError(w, http.StatusBadRequest, APIErrorInvalidQuery)
+		return
+	}
+	days, err := strconv.Atoi(q.Get("days"))
+	if err != nil || days <= 0 || days > 3650 {
+		days = 30
+	}
+	limit, err := strconv.Atoi(q.Get("limit"))
+	if err != nil || limit <= 0 || limit > 1000 {
+		limit = 100
+	}
+	rows, err := db.LoadFlaggedMatches(statuses, time.Now().UTC().AddDate(0, 0, -days), limit)
+	if err != nil {
+		replyError(w, http.StatusInternalServerError, "database_error")
+		return
+	}
+	counts := []map[string]any{}
+	for pid, n := range database.FlaggedCounts(rows) {
+		counts = append(counts, map[string]any{"pid": pid, "mismatches": n})
+	}
+	sort.Slice(counts, func(i, j int) bool {
+		ni, nj := counts[i]["mismatches"].(int), counts[j]["mismatches"].(int)
+		if ni != nj {
+			return ni > nj
+		}
+		return counts[i]["pid"].(uint32) < counts[j]["pid"].(uint32)
+	})
+	replyOK(w, map[string]any{"rows": rows, "profiles": counts})
+}
+
+func ffcFlaggedStatuses(s string) ([]string, bool) {
+	switch s {
+	case "", "mismatch":
+		return []string{"mismatch"}, true
+	case "single":
+		return []string{"single"}, true
+	case "both":
+		return []string{"mismatch", "single"}, true
+	}
+	return nil, false
 }

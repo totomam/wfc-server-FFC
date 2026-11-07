@@ -75,4 +75,33 @@ func TestFFCHandlersPostgres(t *testing.T) {
 	if rec.Code != 400 {
 		t.Fatal("same pid must be 400")
 	}
+	// #28 admin list: needs the API secret; lists mismatch rows (database live test leaves one).
+	apiSecret = "s3cret"
+	rec = httptest.NewRecorder()
+	HandleFFCFlagged(rec, httptest.NewRequest("GET", "/api/ffc/admin/flagged", nil))
+	if rec.Code != 401 {
+		t.Fatal("flagged without secret must be 401, got", rec.Code)
+	}
+	fl := get("flagged", func(rec *httptest.ResponseRecorder) {
+		HandleFFCFlagged(rec, httptest.NewRequest("GET", "/api/ffc/admin/flagged?secret=s3cret&status=both&days=1", nil))
+	})
+	if len(fl["rows"].([]any)) < 1 || fl["profiles"] == nil {
+		t.Fatal(fl)
+	}
+	rec = httptest.NewRecorder()
+	HandleFFCFlagged(rec, httptest.NewRequest("GET", "/api/ffc/admin/flagged?secret=s3cret&status=bogus", nil))
+	if rec.Code != 400 {
+		t.Fatal("bad status must be 400")
+	}
+}
+
+func TestFFCFlaggedStatuses(t *testing.T) {
+	for in, want := range map[string]int{"": 1, "mismatch": 1, "single": 1, "both": 2} {
+		if s, ok := ffcFlaggedStatuses(in); !ok || len(s) != want {
+			t.Fatal(in, s, ok)
+		}
+	}
+	if _, ok := ffcFlaggedStatuses("confirmed"); ok {
+		t.Fatal("confirmed is not an admin filter")
+	}
 }

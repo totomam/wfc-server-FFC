@@ -129,6 +129,9 @@
                          <event>profile_kicked</event>
                          <event>profile_banned</event>
                          <event>profile_unbanned</event>
+                         <!-- FFC (ffc-decomp #66/#28): one per confirmed PvP match / two reports disagree -->
+                         <event>match_result</event>
+                         <event>match_mismatch</event>
                     </eventTypes>
                </webhook>
           </discord>

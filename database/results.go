@@ -88,12 +88,26 @@ func nullPid(p uint32) any {
 	return int64(p)
 }
 
+// StoreResult is what one stored report did to its row: id, status ("single", "confirmed", "mismatch") and, for a
+// mismatch, the first field the two reports disagree on (CompareMatch).
+type StoreResult struct {
+	ID       int64
+	Status   string
+	Mismatch string
+}
+
 // StoreMatchReport stores one side's report: it completes the open row of the same pair (cross-check) or creates
 // a new row. Returns the row id and its status ("single", "confirmed", "mismatch").
 func (c *Connection) StoreMatchReport(r MatchReport) (int64, string, error) {
+	res, err := c.StoreMatchReportDetail(r)
+	return res.ID, res.Status, err
+}
+
+// StoreMatchReportDetail is StoreMatchReport plus the mismatch field (for the #28 alert).
+func (c *Connection) StoreMatchReportDetail(r MatchReport) (StoreResult, error) {
 	tx, err := c.pool.Begin(c.ctx)
 	if err != nil {
-		return 0, "", err
+		return StoreResult{}, err
 	}
 	defer func() { _ = tx.Rollback(c.ctx) }()
 
@@ -124,10 +138,10 @@ func (c *Connection) StoreMatchReport(r MatchReport) (int64, string, error) {
 		err = tx.QueryRow(c.ctx, queryInsertMatch, int64(r.PidA), int64(r.PidB), nullPid(r.WinnerPid), r.Draw, r.TimeUp,
 			r.Modded, int64(r.MatchVer), r.NameA, r.NameB, []byte(r.TeamA), []byte(r.TeamB), repA, repB).Scan(&id)
 		if err != nil {
-			return 0, "", err
+			return StoreResult{}, err
 		}
 	case err != nil:
-		return 0, "", err
+		return StoreResult{}, err
 	default:
 		mismatch = CompareMatch(r, winner, draw, timeUp, uint32(matchVer), teamA, teamB)
 		status = "confirmed"
@@ -135,10 +149,10 @@ func (c *Connection) StoreMatchReport(r MatchReport) (int64, string, error) {
 			status = "mismatch"
 		}
 		if _, err = tx.Exec(c.ctx, queryCompleteMatch, id, repA, repB, status, mismatch); err != nil {
-			return 0, "", err
+			return StoreResult{}, err
 		}
 	}
-	return id, status, tx.Commit(c.ctx)
+	return StoreResult{ID: id, Status: status, Mismatch: mismatch}, tx.Commit(c.ctx)
 }
 
 // CompareMatch returns "" when the second report agrees with the stored row, else the first differing field.

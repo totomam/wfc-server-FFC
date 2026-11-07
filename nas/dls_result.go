@@ -60,7 +60,7 @@ type ResultReport struct {
 type resultStore interface {
 	UserOwnsProfile(userID uint64, profileID uint32) (bool, error)
 	ProfileExists(profileID uint32) (bool, error)
-	StoreMatchReport(r database.MatchReport) (int64, string, error)
+	StoreMatchReportDetail(r database.MatchReport) (database.StoreResult, error)
 }
 
 var resultDB resultStore
@@ -162,11 +162,12 @@ func dlsResult(moduleName string, fields map[string][]byte) []byte {
 		return []byte("err opponent")
 	}
 	m := r.toMatchReport(raw)
-	id, status, err := resultDB.StoreMatchReport(m)
+	res, err := resultDB.StoreMatchReportDetail(m)
 	if err != nil {
 		logging.Error(moduleName, "result: store:", err)
 		return []byte("err store")
 	}
+	id, status := res.ID, res.Status
 	outcome := "draw"
 	if !m.Draw {
 		outcome = "winner " + strconv.FormatUint(uint64(m.WinnerPid), 10)
@@ -174,5 +175,54 @@ func dlsResult(moduleName string, fields map[string][]byte) []byte {
 	logging.Notice(moduleName, "Match result", aurora.Cyan(id), aurora.Cyan(status).String()+":", aurora.Cyan(m.PidA), aurora.Cyan(m.NameA),
 		"vs", aurora.Cyan(m.PidB), aurora.Cyan(m.NameB), "->", aurora.BrightGreen(outcome), "reporter", aurora.Cyan(r.MyPID),
 		"teams", aurora.Cyan(string(m.TeamA)), aurora.Cyan(string(m.TeamB)))
+	if status == "mismatch" {
+		logging.Warn(moduleName, "Match result", aurora.Cyan(id), aurora.BrightRed("MISMATCH"), "on", aurora.Cyan(res.Mismatch).String()+":",
+			aurora.Cyan(m.PidA), "vs", aurora.Cyan(m.PidB), "second reporter", aurora.Cyan(r.MyPID), "(admin: /api/ffc/admin/flagged)")
+	}
+	if ev, data := matchEvent(res, m, r.MyPID); ev != "" {
+		logging.Event(ev, data)
+	}
 	return []byte("ok " + strconv.FormatInt(id, 10) + " " + status)
+}
+
+// matchEvent picks the event for a stored report (ffc-decomp ROADMAP #66 match feed, #28 alerts): "match_result"
+// once per match (when the second console confirms it), "match_mismatch" when the two reports disagree; a first
+// (single) report sends nothing, so a webhook gets one message per battle. Event names go in config.xml
+// <eventTypes> of a webhook (or "all").
+func matchEvent(res database.StoreResult, m database.MatchReport, reporter uint32) (string, map[string]any) {
+	var ev string
+	switch res.Status {
+	case "confirmed":
+		ev = "match_result"
+	case "mismatch":
+		ev = "match_mismatch"
+	default:
+		return "", nil
+	}
+	queue := "vanilla"
+	if m.Modded {
+		queue = "modded"
+	}
+	result := "Draw"
+	switch {
+	case m.Draw:
+	case m.WinnerPid == m.PidA:
+		result = m.NameA + " won"
+	default:
+		result = m.NameB + " won"
+	}
+	data := map[string]any{
+		"Match ID":  res.ID,
+		"Players":   fmt.Sprintf("%s (%d) vs %s (%d)", m.NameA, m.PidA, m.NameB, m.PidB),
+		"Result":    result,
+		"Queue":     queue,
+		"Time up":   m.TimeUp,
+		"Teams":     string(m.TeamA) + " vs " + string(m.TeamB),
+		"Winner ID": m.WinnerPid,
+	}
+	if ev == "match_mismatch" {
+		data["Mismatch"] = res.Mismatch
+		data["Second reporter"] = reporter
+	}
+	return ev, data
 }
