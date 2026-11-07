@@ -281,6 +281,9 @@ func getSpecificRecords(moduleName string, profileId uint32, gameInfo common.Gam
 	if len(request.RecordIDs.Int) == 0 {
 		return StorageResponseBody{GetSpecificRecordsResponse: &GetSpecificRecordsResponse{GetSpecificRecordsResult: ResultRecordNotFound}}
 	}
+	if isPVERequest(gameInfo, request.RecordIDs.Int) {
+		return getPVERecord(moduleName, profileId, gameInfo, request)
+	}
 	records, table, result := readableRecords(moduleName, profileId, gameInfo, request, request.RecordIDs.Int)
 	if result != ResultSuccess {
 		return StorageResponseBody{GetSpecificRecordsResponse: &GetSpecificRecordsResponse{GetSpecificRecordsResult: result}}
@@ -331,6 +334,9 @@ func rateRecord(moduleName string, profileId uint32, gameInfo common.GameInfo, r
 	}
 	if request.TableID == "" {
 		return resp(ResultTableNotFound, 0, 0)
+	}
+	if isPVERequest(gameInfo, []int32{request.RecordID}) {
+		return ratePVERecord(moduleName, profileId, request)
 	}
 	// Only tables that are defined, explicitly rateable and publicly readable can be rated
 	// (anything else would let players write rating rows into records they cannot even read).

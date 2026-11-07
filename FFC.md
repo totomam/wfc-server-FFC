@@ -39,6 +39,13 @@ Read-only JSON on the NAS HTTP port, no auth, CORS `*`; computed on read from `m
   `<eventTypes>` (best a separate webhook/channel, e.g. #who-is-online). `all` also sends the IP events: avoid it
   on a public channel.
 
+## Local PvE on matchmaking timeout (ffc-decomp ROADMAP #102 local variant)
+- Modded ROM (s111+): when Battle with Anyone finds nobody (~100 s), the game starts the stock Team Plaza battle
+  against record id `0x7FFFFF00` (2147483392). GetSpecificRecords for it returns a random server-made team (owner
+  999000001: `online_ghost.py` ghosts / bosses) or, if none, a random other player's team; its recordid is
+  rewritten so nothing real is rated. RateRecord on it stores nothing (no ranking, no ghost rating), logs
+  `PvE result` and sends the webhook event `pve_result` (add it to `<eventTypes>` to post it).
+
 ## Live counter + admin dashboard (ffc-decomp ROADMAP #30, #33, #72)
 - `GET /api/ffc/online` (public, counts only): `online` (logged in), `matchmaking` (QR2 sessions), `in_battle`,
   `modded` / `vanilla` (QR2 `dwc_mver` != / == 90). For a web/Discord widget (#39).
