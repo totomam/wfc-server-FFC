@@ -10,6 +10,7 @@ import (
 	"strconv"
 	"strings"
 	"wwfc/common"
+	"wwfc/ffcbonus"
 	"wwfc/logging"
 
 	"github.com/logrusorgru/aurora/v3"
@@ -22,6 +23,7 @@ var dlsActions = map[string]func(moduleName string, fields map[string][]byte) []
 	"balance":  dlsBalance,
 	"package":  dlsPackage,
 	"result":   dlsResult,
+	"motd":     dlsMotd,
 }
 
 // pkgMaxLen is the client's package rx limit (PKG_MAX_LEN, docs/online/PACKAGE_WIRE.md in ffc-decomp).
@@ -158,6 +160,16 @@ func dlsPackage(moduleName string, fields map[string][]byte) []byte {
 		return []byte("NONE")
 	}
 	return data
+}
+
+// dlsMotd serves the login MOTD (ffc-decomp ROADMAP #54, s105-online; ffcbonus/motd.go) for the "motd" Nd action
+// of the modded loader. No text -> an empty body (the client shows no box). Only the loader asks: stock games never.
+func dlsMotd(moduleName string, fields map[string][]byte) []byte {
+	s, err := ffcbonus.Motd(string(fields["rhgamecd"]))
+	if err != nil {
+		return []byte{}
+	}
+	return []byte(s)
 }
 
 func emptyBalanceTable() []byte {

@@ -58,6 +58,10 @@ Read-only JSON on the NAS HTTP port, no auth, CORS `*`; computed on read from `m
   modded package, skipped by a stock game), body `MAIL i/n` + text. Admin: `GET /api/ffc/admin/mail?secret=…&pid=P`;
   `POST {"secret","pid","text"[,"slot"]}` (slot 0 = first free), `{"secret","pid","slot","delete":true}`,
   `{"secret","pid","clear":true}`. Any alias pid resolves to the main one.
+- s105 #54 login MOTD: one admin text (<= 360 printable ASCII chars, ~10 rows x 36), dlc/VDEE.motd (outside dlc/VDEE/,
+  never a Bonus Data file), served by the Nd action `motd` (empty body = none). The modded loader shows it in an OK box
+  at the Wi-Fi top menu once per Wi-Fi connection and again when it changes; stock games and the vanilla ROM never ask.
+  Admin: `GET /api/ffc/admin/motd?secret=…`; `POST {"secret","text"}`; `POST {"secret","delete":true}`.
 
 ## Ranked vs casual (ffc-decomp ROADMAP #35, server-only)
 - Each result row gets `queue` from the QR2 group holding both players at report time: Battle with Anyone (dwc_mtype
