@@ -154,3 +154,10 @@ Read-only JSON on the NAS HTTP port, no auth, CORS `*`; computed on read from `m
   window wins; no file = base. Players get it at the next Wi-Fi menu visit; stock games never ask.
 - Each event package = a FULL signed package (hack code + reskin) with a HIGHER counter than the base one; after the
   event re-sign the base package with a higher counter again (the loader refuses lower counters until a restart).
+
+## Rule-set modes (ffc-decomp ROADMAP #44, s106)
+- `package/modes.tsv` (copy `modes.example.tsv`): `<mode>\t<display>` (<= 4 lines, display <= 20 ASCII; `default` =
+  the base `<game>.bin` files). Nd action `modes` returns the list; `package`/`balance` with `attr1=<mode>` serve
+  `package/<game>.<mode>.bin` / `balance/<game>.<mode>.bin` (missing -> base). The s106+ modded ROM asks "Play this
+  battle with the rules: <display>?" per mode (current first) and re-fetches on a different pick; matchmaking splits
+  modes by package/table crc. Each mode package: own counter sequence (the loader keeps one replay floor per mode).

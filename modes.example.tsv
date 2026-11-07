@@ -1,0 +1,3 @@
+# package/modes.tsv (#44 rule-set modes): <mode>\t<display name>  (<= 4 lines; "default" = the base files)
+default	Hack
+blue	Blue menus

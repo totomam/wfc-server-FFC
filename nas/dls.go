@@ -25,6 +25,7 @@ var dlsActions = map[string]func(moduleName string, fields map[string][]byte) []
 	"package":  dlsPackage,
 	"result":   dlsResult,
 	"motd":     dlsMotd,
+	"modes":    dlsModes,
 }
 
 // pkgMaxLen is the client's package rx limit (PKG_MAX_LEN, docs/online/PACKAGE_WIRE.md in ffc-decomp).
@@ -139,7 +140,7 @@ func dlsContents(moduleName string, fields map[string][]byte) []byte {
 // table (count=0, correct CRC), not an error response: the client's BalanceParse must see one well-formed shape or
 // the other, never a malformed one it has to special-case.
 func dlsBalance(moduleName string, fields map[string][]byte) []byte {
-	path := activeEventFile(balanceDir, string(fields["rhgamecd"]), time.Now())
+	path := modeFile(balanceDir, string(fields["rhgamecd"]), fields, time.Now())
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return emptyBalanceTable()
@@ -152,7 +153,7 @@ func dlsBalance(moduleName string, fields map[string][]byte) []byte {
 // signature: the client verifies Ed25519 itself. No file (or one over the client's limit) -> "NONE", which fails
 // the client's PkgCheck = vanilla rules (stock bytes), the same as a stock server.
 func dlsPackage(moduleName string, fields map[string][]byte) []byte {
-	path := activeEventFile(packageDir, string(fields["rhgamecd"]), time.Now())
+	path := modeFile(packageDir, string(fields["rhgamecd"]), fields, time.Now())
 	data, err := os.ReadFile(path)
 	if err != nil || len(data) > pkgMaxLen {
 		if err == nil {
