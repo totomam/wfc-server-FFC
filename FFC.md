@@ -79,6 +79,16 @@ Read-only JSON on the NAS HTTP port, no auth, CORS `*`; computed on read from `m
 - Every public `/api/ffc/*` stat (leaderboard, Elo, h2h, matches `pid=`) counts an alias as its canonical; a
   match between two linked profiles is dropped from the stats. `match_results` rows are never rewritten.
 
+## Tournaments + rewards feed (ffc-decomp ROADMAP #45, #43, server part)
+- `tournaments.json` in the server working dir (example `tournaments.example.json`): single-elimination brackets,
+  `players` in seed order (pairs 1-2, 3-4, ... in round 1; padded with byes), `start`/`end` UTC, `mode` casual
+  (default: friend battles) | ranked | all. Edit the file to add a tournament; no restart needed.
+- `/api/ffc/tournaments` (`?id=X`): each bracket resolved from **confirmed** match_results: a pairing is won by the
+  first confirmed non-draw match between its two players inside the window and after both players' previous bracket
+  win. Rounds, winners, the deciding match id/time, `champion`, `finished`. Profiles are canonical (#53 links).
+- `/api/ffc/rewards`: champions of finished tournaments + top 3 by Elo (>= 5 confirmed ranked games) of every finished
+  season. For a Discord bot to assign roles (#43); the bot itself (and its token) lives outside this server.
+
 ## Abuse limits (ffc-decomp ROADMAP #69, API part)
 - Public `/api/ffc/*` reads: per client IP 20 requests burst, 60/min refill (HTTP 429 + Retry-After); loaded match
   rows cached 15 s per time window. Admin endpoints (secret) unlimited. Game protocols (GPCM/QR2/NATNEG) unchanged.

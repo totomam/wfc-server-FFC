@@ -267,3 +267,111 @@ func HandleFFCBalance(w http.ResponseWriter, r *http.Request) {
 	}
 	replyOK(w, map[string]any{"season": win.season, "versions": ffcstats.BalanceImpact(ms, top)})
 }
+
+// Tournaments (ffc-decomp ROADMAP #45 server part): tournaments.json next to the server (ffcstats.Tournament).
+// GET /api/ffc/tournaments -> every tournament with its bracket resolved from confirmed match_results;
+// ?id=X -> one. Players are canonical profiles (#53 links). The Discord bot / web page reads this.
+var ffcTournamentsFile = "tournaments.json"
+
+func ffcTournaments() []ffcstats.Tournament {
+	f, err := os.Open(ffcTournamentsFile)
+	if err != nil {
+		return nil
+	}
+	defer f.Close()
+	ts, err := ffcstats.ParseTournaments(f)
+	if err != nil {
+		return nil
+	}
+	return ts
+}
+
+func ffcBrackets(ts []ffcstats.Tournament) ([]ffcstats.Bracket, error) {
+	out := []ffcstats.Bracket{}
+	links := ffcPlayerLinks()
+	for _, t := range ts {
+		to := t.End
+		if to.IsZero() {
+			to = time.Now().UTC().Add(time.Hour)
+		}
+		ms, err := ffcLoadMatchesCached(t.Start, to)
+		if err != nil {
+			return nil, err
+		}
+		ms = ffcstats.ApplyLinks(ffcstats.Filter(ms, nil, t.Start, to, []string{"confirmed"}), links)
+		for i, p := range t.Players {
+			t.Players[i] = ffcstats.Resolve(links, p)
+		}
+		out = append(out, ffcstats.ResolveBracket(t, ms))
+	}
+	return out, nil
+}
+
+func HandleFFCTournaments(w http.ResponseWriter, r *http.Request) {
+	q, err := parseGet(r, w, RoleNone)
+	if err != nil {
+		return
+	}
+	ts := ffcTournaments()
+	if id := q.Get("id"); id != "" {
+		t, ok := ffcstats.FindTournament(ts, id)
+		if !ok {
+			replyError(w, http.StatusNotFound, "tournament_not_found")
+			return
+		}
+		ts = []ffcstats.Tournament{t}
+	}
+	bs, err := ffcBrackets(ts)
+	if err != nil {
+		replyError(w, http.StatusInternalServerError, "database_error")
+		return
+	}
+	replyOK(w, map[string]any{"tournaments": bs})
+}
+
+// Rewards feed (ffc-decomp ROADMAP #43 server part): who earned a reward, for a Discord bot to assign roles.
+// GET /api/ffc/rewards -> champions of finished tournaments + the top 3 (Elo, >= 5 confirmed ranked games) of every
+// finished season (seasons.tsv). No Discord token lives on the server; the bot polls this.
+type ffcReward struct {
+	Pid    uint32 `json:"pid"`
+	Name   string `json:"name,omitempty"`
+	Kind   string `json:"kind"` // tournament_champion | season_top3
+	Source string `json:"source"`
+	Place  int    `json:"place"`
+}
+
+func HandleFFCRewards(w http.ResponseWriter, r *http.Request) {
+	if _, err := parseGet(r, w, RoleNone); err != nil {
+		return
+	}
+	rewards := []ffcReward{}
+	bs, err := ffcBrackets(ffcTournaments())
+	if err != nil {
+		replyError(w, http.StatusInternalServerError, "database_error")
+		return
+	}
+	for _, b := range bs {
+		if b.Finished {
+			rewards = append(rewards, ffcReward{Pid: b.Champion, Kind: "tournament_champion", Source: b.ID, Place: 1})
+		}
+	}
+	now := time.Now().UTC()
+	for _, s := range ffcSeasons() {
+		if s.End.IsZero() || s.End.After(now) {
+			continue
+		}
+		ms, err := ffcLoadMatchesCached(s.Start, s.End)
+		if err != nil {
+			replyError(w, http.StatusInternalServerError, "database_error")
+			return
+		}
+		ms = ffcstats.FilterMode(ffcstats.ApplyLinks(ffcstats.Filter(ms, nil, s.Start, s.End, []string{"confirmed"}), ffcPlayerLinks()), "ranked")
+		for i, p := range ffcstats.Leaderboard(ms, 5) {
+			if i >= 3 {
+				break
+			}
+			rewards = append(rewards, ffcReward{Pid: p.Pid, Name: p.Name, Kind: "season_top3", Source: s.ID, Place: i + 1})
+		}
+	}
+	replyOK(w, map[string]any{"rewards": rewards})
+}
