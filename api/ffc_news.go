@@ -14,6 +14,7 @@ import (
 //	97 profile:    the player's ranked row (current season, else all time): rank, Elo, W/L/D
 //	98 top:        top 5 of the same leaderboard (players with >= 5 matches)
 //	99 challenges: active challenges.json entries with the player's progress
+//	165..180 mail:  the player's inbox (#77, s104-online, ffcbonus/mail.go; admin /api/ffc/admin/mail)
 //
 // The player = the console's oldest FFC profile, resolved through admin links (#53).
 
@@ -54,7 +55,7 @@ func ffcNews(gamecd string, userID uint64) []ffcbonus.NewsItem {
 			cr = nil
 		}
 	}
-	return ffcNewsItems(ms, s.ID, pid, cr)
+	return append(ffcNewsItems(ms, s.ID, pid, cr), ffcbonus.MailItems(gamecd, pid)...)
 }
 
 // ffcNewsItems: pure part of ffcNews (tests).

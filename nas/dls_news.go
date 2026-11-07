@@ -12,7 +12,8 @@ import (
 // In-game news (ffc-decomp ROADMAP #76/#73/#79/#41, s103-online; docs/online/NEWS.md in ffc-decomp). The game's Bonus
 // Data box shows each listed file's body as text. A stock game only shows ids 1..64 once (save flag); a game running
 // the modded package (ov007 sites) also shows ids 65..99 on EVERY visit. 65..96 are admin files (ffcbonus); 97..99 are
-// generated per player by ffcbonus.NewsSource (set by the api package): profile, top players, challenges.
+// generated per player by ffcbonus.NewsSource (set by the api package): profile, top players, challenges; 165..180
+// = that player's mail inbox (#77, s104-online; the game keeps id % 100 = 65..80, shown like news).
 
 // newsTTL keeps one console's generated items fixed between its list and contents requests: the client needs
 // contents length == the size given by list (a result arriving in between must not change the text).
@@ -52,7 +53,7 @@ func newsItems(gamecd string, fields map[string][]byte) []ffcbonus.NewsItem {
 	newsMu.Unlock()
 	var items []ffcbonus.NewsItem
 	for _, it := range ffcbonus.NewsSource(gamecd, userID) {
-		if n, err := strconv.Atoi(it.Name); err != nil || n < 97 || n > 99 || len(it.Body) == 0 || len(it.Body) > 0x3ff {
+		if n, err := strconv.Atoi(it.Name); err != nil || (n < 97 || n > 99) && !ffcbonus.IsMailName(it.Name) || len(it.Body) == 0 || len(it.Body) > 0x3ff {
 			continue
 		}
 		items = append(items, it)

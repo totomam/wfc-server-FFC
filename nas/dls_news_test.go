@@ -64,3 +64,18 @@ func TestNewsServed(t *testing.T) {
 		t.Fatalf("no userid count %q", c)
 	}
 }
+
+// #77: mail items (165..180) pass the generated-item filter, other ids >= 100 do not.
+func TestNewsMailServed(t *testing.T) {
+	old, oldSrc := dlcDir, ffcbonus.NewsSource
+	dlcDir = t.TempDir()
+	newsCache = map[string]newsEntry{}
+	defer func() { dlcDir, ffcbonus.NewsSource = old, oldSrc }()
+	ffcbonus.NewsSource = func(gamecd string, user uint64) []ffcbonus.NewsItem {
+		return []ffcbonus.NewsItem{{Name: "165", Body: []byte("MAIL 1/1\nhi")}, {Name: "181", Body: []byte("x")}, {Name: "150", Body: []byte("x")}}
+	}
+	f := map[string][]byte{"rhgamecd": []byte("VDEE"), "userid": []byte("43")}
+	if l := string(dlsList("t", f)); l == "" || !strings.HasPrefix(l, "165\t") || strings.Count(l, "\r\n") != 1 {
+		t.Fatalf("list %q", l)
+	}
+}

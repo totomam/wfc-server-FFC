@@ -53,6 +53,11 @@ Read-only JSON on the NAS HTTP port, no auth, CORS `*`; computed on read from `m
   links): `97` your ranked row (current season of seasons.tsv, else all time: rank, Elo, W/L/D), `98` top 5 (>= 5
   matches), `99` active challenges.json entries with your progress. Listed FIRST (the game reads <= 64 entries); the
   text is cached 60 s per console so list size == contents length. A file named 97..99 on disk is hidden.
+- s104 #77 mail inbox: up to 16 messages per player (main profile, #53 links), dlc/mail/VDEE/<pid>/<slot>, served
+  to that player's console only as files `165`..`180` (the game keeps id % 100 = 65..80: shown on every visit with the
+  modded package, skipped by a stock game), body `MAIL i/n` + text. Admin: `GET /api/ffc/admin/mail?secret=…&pid=P`;
+  `POST {"secret","pid","text"[,"slot"]}` (slot 0 = first free), `{"secret","pid","slot","delete":true}`,
+  `{"secret","pid","clear":true}`. Any alias pid resolves to the main one.
 
 ## Ranked vs casual (ffc-decomp ROADMAP #35, server-only)
 - Each result row gets `queue` from the QR2 group holding both players at report time: Battle with Anyone (dwc_mtype
