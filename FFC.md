@@ -34,3 +34,9 @@ Read-only JSON on the NAS HTTP port, no auth, CORS `*`; computed on read from `m
   `modded` / `vanilla` (QR2 `dwc_mver` != / == 90). For a web/Discord widget (#39).
 - `GET /api/ffc/admin/dashboard?secret=<apiSecret>&days=14`: online players (pid, name, GP status), match activity
   (per UTC hour + per day, queue split, status counts, peak hour), matches in 24 h, mismatch count per profile.
+
+## Bonus Data messages (ffc-decomp ROADMAP #96, #38)
+- `GET /api/ffc/admin/bonus?secret=…` lists dlc/VDEE messages; `POST {"secret","id","text"}` writes one (id 1..64,
+  printable ASCII + newlines, <= 1023 chars, atomic), `POST {"secret","id","delete":true}` removes it. Served by the
+  existing Nd count/list/contents. Each id reaches a save ONCE (the game flags it), so every announcement needs a new
+  id; ids 1..7 also give fossil rocks 600..606 (empty in the USA ROM), ids 8..64 rock id 0 (verify in game first).
