@@ -61,7 +61,7 @@ const (
 		WHERE game_id = $1 
 		  AND table_id = $2 
 		  AND (cardinality($4::integer[]) = 0 OR record_id = ANY($4::integer[])) 
-		  AND (cardinality($3::integer[]) = 0 OR owner_id = ANY($3::integer[]))`
+		  AND (cardinality($3::integer[]) = 0 OR owner_id = ANY($3::integer[]))` + sakeEventVisible
 
 	updateSakeRecordQuery = `
         UPDATE sake_records 

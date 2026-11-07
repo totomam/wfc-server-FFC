@@ -75,4 +75,9 @@ func (c *Connection) UpdateTables() {
 	if err != nil {
 		logging.Error("DATABASE", "Failed to create the sake_ratings table:", err)
 	}
+
+	// FFC event / boss Plaza team windows (plaza_events.go); must exist before GetSakeRecords runs.
+	if _, err = c.pool.Exec(c.ctx, ffcPlazaEventsTable); err != nil {
+		logging.Error("DATABASE", "Failed to create the ffc_plaza_events table:", err)
+	}
 }

@@ -207,6 +207,27 @@ CREATE INDEX IF NOT EXISTS match_results_pair_idx ON public.match_results (pid_a
 ALTER TABLE public.match_results OWNER TO wiilink;
 
 --
+-- Name: ffc_plaza_events; Type: TABLE; Schema: public; Owner: wiilink
+-- FFC event / boss Plaza team windows (database/plaza_events.go); a scheduled record is visible only inside a window.
+--
+
+CREATE TABLE IF NOT EXISTS public.ffc_plaza_events (
+    id serial PRIMARY KEY,
+    game_id integer NOT NULL,
+    table_id character varying NOT NULL,
+    record_id integer NOT NULL,
+    name character varying NOT NULL DEFAULT '' CHECK (LENGTH(name) <= 64),
+    start_at timestamp without time zone NOT NULL,
+    end_at timestamp without time zone NOT NULL,
+    created_at timestamp without time zone NOT NULL DEFAULT (now() AT TIME ZONE 'UTC'),
+    CHECK (end_at > start_at),
+    FOREIGN KEY (game_id, table_id, record_id) REFERENCES public.sake_records (game_id, table_id, record_id) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS ffc_plaza_events_record_idx ON public.ffc_plaza_events (game_id, table_id, record_id);
+
+ALTER TABLE public.ffc_plaza_events OWNER TO wiilink;
+
+--
 -- PostgreSQL database dump complete
 --
 

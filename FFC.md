@@ -48,6 +48,20 @@ Read-only JSON on the NAS HTTP port, no auth, CORS `*`; computed on read from `m
   existing Nd count/list/contents. Each id reaches a save ONCE (the game flags it), so every announcement needs a new
   id; ids 1..7 also give fossil rocks 600..606 (empty in the USA ROM), ids 8..64 rock id 0 (verify in game first).
 
+## Event / boss Plaza teams (ffc-decomp ROADMAP #40)
+- Table `ffc_plaza_events` (record_id, name, start_at, end_at UTC; created on start + schema.sql). A dental2ds
+  `tbl_main_na` record with any window is served to the game (search / random / specific, all via GetSakeRecords)
+  ONLY while one window is open; records without a window are unchanged. Delete its last window -> always-on again.
+- Make the team with decomp `tools/online_ghost.py` (owner 999000001; "boss" = whatever stats/moves you set), then
+  `POST /api/ffc/admin/events {"secret","record_id","name","start","end"}` (RFC 3339, end > start; 404 unknown record),
+  `POST {"secret","id","delete":true}`, `GET ?secret=…[&all=1]` (windows not over / all, `active`, `team_name`).
+  Decomp `tools/online_ghost.py event ...` wraps the same rows over psql.
+
+## Plaza team / ghost ratings (ffc-decomp ROADMAP #57)
+- `GET /api/ffc/plaza[?sort=rating|ratings|wins&min=N&ghosts=1&limit=N]` (public, rate-limited): teams visible now,
+  `ratings` count + `avg_rating` (game RateRecord, one per rater), self-reported `battle_win/lose/draw`, `ghost`.
+- `GET /api/ffc/admin/ratings?secret=…&record_id=N`: every rater pid + rating, histogram, average.
+
 ## Abuse limits (ffc-decomp ROADMAP #69, API part)
 - Public `/api/ffc/*` reads: per client IP 20 requests burst, 60/min refill (HTTP 429 + Retry-After); loaded match
   rows cached 15 s per time window. Admin endpoints (secret) unlimited. Game protocols (GPCM/QR2/NATNEG) unchanged.
