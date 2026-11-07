@@ -1,0 +1,3 @@
+# package/events.tsv (#82 event reskins): <event>\t<start>\t<end>  (RFC 3339 or YYYY-MM-DD UTC, end exclusive)
+# serves package/<game>.<event>.bin (+ balance/<game>.<event>.bin if present) inside the window
+xmas	2026-12-20	2026-12-27

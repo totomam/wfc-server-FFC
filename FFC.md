@@ -146,3 +146,11 @@ Read-only JSON on the NAS HTTP port, no auth, CORS `*`; computed on read from `m
   rewards, news); re-read with the 15 s match cache. The game still lets the battle happen (client refusal = package work).
 - `GET /api/ffc/banned` (public): the rules. `GET /api/ffc/admin/banned?secret=…[&days=N]` (1..400, default 30):
   rules + violations `{match, rule, pids, creatures}` (the side(s) that broke it).
+
+## Event packages / reskins (ffc-decomp ROADMAP #82, s106)
+- `package/events.tsv` (copy `events.example.tsv`): `<event>\t<start>\t<end>` (RFC 3339 or YYYY-MM-DD UTC, end
+  exclusive). While a window is open and `package/<game>.<event>.bin` exists, the Nd `package` action serves it
+  instead of `<game>.bin`; `balance/<game>.<event>.bin` overrides the table the same way when present. First open
+  window wins; no file = base. Players get it at the next Wi-Fi menu visit; stock games never ask.
+- Each event package = a FULL signed package (hack code + reskin) with a HIGHER counter than the base one; after the
+  event re-sign the base package with a higher counter again (the loader refuses lower counters until a restart).

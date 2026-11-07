@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
 	"wwfc/common"
 	"wwfc/ffcbonus"
 	"wwfc/logging"
@@ -138,7 +139,7 @@ func dlsContents(moduleName string, fields map[string][]byte) []byte {
 // table (count=0, correct CRC), not an error response: the client's BalanceParse must see one well-formed shape or
 // the other, never a malformed one it has to special-case.
 func dlsBalance(moduleName string, fields map[string][]byte) []byte {
-	path := filepath.Join(balanceDir, string(fields["rhgamecd"])+".bin")
+	path := activeEventFile(balanceDir, string(fields["rhgamecd"]), time.Now())
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return emptyBalanceTable()
@@ -151,7 +152,7 @@ func dlsBalance(moduleName string, fields map[string][]byte) []byte {
 // signature: the client verifies Ed25519 itself. No file (or one over the client's limit) -> "NONE", which fails
 // the client's PkgCheck = vanilla rules (stock bytes), the same as a stock server.
 func dlsPackage(moduleName string, fields map[string][]byte) []byte {
-	path := filepath.Join(packageDir, string(fields["rhgamecd"])+".bin")
+	path := activeEventFile(packageDir, string(fields["rhgamecd"]), time.Now())
 	data, err := os.ReadFile(path)
 	if err != nil || len(data) > pkgMaxLen {
 		if err == nil {
