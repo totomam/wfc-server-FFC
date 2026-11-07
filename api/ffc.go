@@ -222,3 +222,27 @@ func ffcFlaggedStatuses(s string) ([]string, bool) {
 	}
 	return nil, false
 }
+
+// HandleFFCTeams (#24): team compositions + creature pairs, ?min=N picks (default 1), ?limit=N rows each (default 50).
+func HandleFFCTeams(w http.ResponseWriter, r *http.Request) {
+	q, ms, win, ok := ffcLoad(w, r)
+	if !ok {
+		return
+	}
+	min, err := strconv.Atoi(q.Get("min"))
+	if err != nil || min < 1 {
+		min = 1
+	}
+	limit, err := strconv.Atoi(q.Get("limit"))
+	if err != nil || limit <= 0 || limit > 500 {
+		limit = 50
+	}
+	teams, pairs, total := ffcstats.Teams(ms, min)
+	if len(teams) > limit {
+		teams = teams[:limit]
+	}
+	if len(pairs) > limit {
+		pairs = pairs[:limit]
+	}
+	replyOK(w, map[string]any{"season": win.season, "teams_total": total, "teams": teams, "pairs": pairs})
+}

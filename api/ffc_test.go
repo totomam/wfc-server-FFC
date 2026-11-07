@@ -75,6 +75,12 @@ func TestFFCHandlersPostgres(t *testing.T) {
 	if rec.Code != 400 {
 		t.Fatal("same pid must be 400")
 	}
+	tm := get("teams", func(rec *httptest.ResponseRecorder) {
+		HandleFFCTeams(rec, httptest.NewRequest("GET", "/api/ffc/teams?status=all", nil))
+	})
+	if tm["teams_total"].(float64) < 2 || len(tm["teams"].([]any)) < 1 {
+		t.Fatal(tm)
+	}
 	// #28 admin list: needs the API secret; lists mismatch rows (database live test leaves one).
 	apiSecret = "s3cret"
 	rec = httptest.NewRecorder()
