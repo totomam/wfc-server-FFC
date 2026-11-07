@@ -6,10 +6,15 @@ import (
 )
 
 // News texts for the in-game Bonus Data box (ffc-decomp ROADMAP #79 profile, #41 top players, #73 challenges;
-// s103-online, docs/online/NEWS.md). Plain ASCII, short lines (the DS box width is not measured yet: <= 26 chars),
-// <= 0x3ff bytes. Empty string = no item.
+// s103-online, docs/online/NEWS.md). Plain ASCII, <= 0x3ff bytes. Empty string = no item. s104-online melonDS: the box
+// wraps by itself at ~37 characters and grows to ~10 visible rows, with no paging (rows past the screen are lost), so
+// lines stay <= newsCols and items <= newsRows rows.
 
-const newsMax = 0x3ff
+const (
+	newsMax  = 0x3ff
+	newsCols = 36 // measured ~37-38 (s104-online)
+	newsRows = 10
+)
 
 func newsName(s string) string {
 	var b strings.Builder
@@ -85,7 +90,7 @@ func ChallengesNews(rs []ChallengeResult, pid uint32) string {
 		} else {
 			line += " ends " + r.End.UTC().Format("Jan 2")
 		}
-		if b.Len()+len(line)+len("CHALLENGES") > newsMax {
+		if b.Len()+len(line)+len("CHALLENGES") > newsMax || strings.Count(b.String()+line, "\n")+1 > newsRows {
 			break
 		}
 		b.WriteString(line)
@@ -101,7 +106,7 @@ func newsTitle(title, id string) string {
 		title = id
 	}
 	var b strings.Builder
-	for i := 0; i < len(title) && b.Len() < 26; i++ {
+	for i := 0; i < len(title) && b.Len() < newsCols; i++ {
 		if c := title[i]; c >= 0x20 && c <= 0x7e {
 			b.WriteByte(c)
 		}

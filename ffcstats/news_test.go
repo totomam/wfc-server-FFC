@@ -35,6 +35,15 @@ func TestNewsTexts(t *testing.T) {
 	if s := ChallengesNews([]ChallengeResult{r}, 2); s != "CHALLENGES\nWin 3 with Frigi\n 0/3 ends Nov 8" {
 		t.Fatalf("challenges open %q", s)
 	}
+	six := []ChallengeResult{r, r, r, r, r, r} // 1 + 2 rows each: only 4 fit the measured 10-row box
+	if s := ChallengesNews(six, 1); strings.Count(s, "\n")+1 != 9 {
+		t.Fatalf("rows cap %q", s)
+	}
+	lc := r
+	lc.Title = "Win 3 ranked battles with Aeros in your team"
+	if s := ChallengesNews([]ChallengeResult{lc}, 1); !strings.Contains(s, "\nWin 3 ranked battles with Aeros in y\n") {
+		t.Fatalf("title cut %q", s)
+	}
 	r.Active = false
 	if ChallengesNews([]ChallengeResult{r}, 1) != "" {
 		t.Fatal("inactive challenge listed")
