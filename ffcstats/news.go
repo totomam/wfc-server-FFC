@@ -2,6 +2,7 @@ package ffcstats
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 )
 
@@ -112,4 +113,65 @@ func newsTitle(title, id string) string {
 		}
 	}
 	return b.String()
+}
+
+// RecentNews (#42 text replays, s105-online): pid's last 3 confirmed matches (any queue), newest first, as
+// "WIN/LOSS/DRAW vs <name> (<queue>)" + both teams by vivosaur name (vivo: id -> short name; missing -> "#id").
+// 1 + 3 x 3 rows <= newsRows; each team row is cut to newsCols. ms must already have #53 links applied.
+func RecentNews(ms []Match, pid uint32, vivo map[int]string) string {
+	var mine []Match
+	for _, m := range ms {
+		if m.Status == "confirmed" && (m.PidA == pid || m.PidB == pid) && m.PidA != m.PidB {
+			mine = append(mine, m)
+		}
+	}
+	if len(mine) == 0 {
+		return ""
+	}
+	sort.SliceStable(mine, func(i, j int) bool { return mine[i].CreatedAt.After(mine[j].CreatedAt) })
+	team := func(label string, t []Pick) string {
+		ps := append([]Pick(nil), t...)
+		sort.SliceStable(ps, func(i, j int) bool { return ps[i].Slot < ps[j].Slot })
+		s := label
+		for i, p := range ps {
+			n, ok := vivo[int(p.Creature)]
+			if !ok || n == "" {
+				n = fmt.Sprintf("#%d", p.Creature)
+			}
+			if i > 0 {
+				s += ","
+			}
+			s += newsName(n)
+		}
+		if len(s) > newsCols {
+			s = s[:newsCols]
+		}
+		return s
+	}
+	var b strings.Builder
+	b.WriteString("YOUR LAST MATCHES")
+	for i, m := range mine {
+		if i >= 3 {
+			break
+		}
+		opp, myT, oppT := m.NameB, m.TeamA, m.TeamB
+		if m.PidB == pid {
+			opp, myT, oppT = m.NameA, m.TeamB, m.TeamA
+		}
+		res := "LOSS"
+		switch {
+		case m.Draw || m.WinnerPid == 0:
+			res = "DRAW"
+		case m.WinnerPid == pid:
+			res = "WIN"
+		}
+		q := m.Queue
+		if q == "" {
+			q = "ranked"
+		}
+		fmt.Fprintf(&b, "\n%s vs %s (%s)", res, newsName(opp), newsName(q))
+		b.WriteString("\n" + team(" you: ", myT))
+		b.WriteString("\n" + team(" foe: ", oppT))
+	}
+	return newsCut(b.String())
 }

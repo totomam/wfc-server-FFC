@@ -58,6 +58,9 @@ Read-only JSON on the NAS HTTP port, no auth, CORS `*`; computed on read from `m
   modded package, skipped by a stock game), body `MAIL i/n` + text. Admin: `GET /api/ffc/admin/mail?secret=…&pid=P`;
   `POST {"secret","pid","text"[,"slot"]}` (slot 0 = first free), `{"secret","pid","slot","delete":true}`,
   `{"secret","pid","clear":true}`. Any alias pid resolves to the main one.
+- s105 #42 text replay: generated news file `196` (the game shows it as id 96, like mail) = the player's last 3
+  confirmed matches (any queue): result, opponent, both teams by vivosaur name. Names from optional `vivos.json` next
+  to the server (ffc-decomp `tools/online_news.py vivos --rom ROM -o vivos.json`), else `#id`.
 - s105 #54 login MOTD: one admin text (<= 360 printable ASCII chars, ~10 rows x 36), dlc/VDEE.motd (outside dlc/VDEE/,
   never a Bonus Data file), served by the Nd action `motd` (empty body = none). The modded loader shows it in an OK box
   at the Wi-Fi top menu once per Wi-Fi connection and again when it changes; stock games and the vanilla ROM never ask.

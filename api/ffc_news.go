@@ -1,6 +1,10 @@
 package api
 
 import (
+	"encoding/json"
+	"os"
+	"strconv"
+	"sync"
 	"time"
 	"wwfc/ffcbonus"
 	"wwfc/ffcstats"
@@ -14,6 +18,7 @@ import (
 //	97 profile:    the player's ranked row (current season, else all time): rank, Elo, W/L/D
 //	98 top:        top 5 of the same leaderboard (players with >= 5 matches)
 //	99 challenges: active challenges.json entries with the player's progress
+//	196 recent:     the player's last 3 confirmed matches with both teams (#42 text replay, s105-online)
 //	165..180 mail:  the player's inbox (#77, s104-online, ffcbonus/mail.go; admin /api/ffc/admin/mail)
 //
 // The player = the console's oldest FFC profile, resolved through admin links (#53).
@@ -55,7 +60,52 @@ func ffcNews(gamecd string, userID uint64) []ffcbonus.NewsItem {
 			cr = nil
 		}
 	}
-	return append(ffcNewsItems(ms, s.ID, pid, cr), ffcbonus.MailItems(gamecd, pid)...)
+	out := ffcNewsItems(ms, s.ID, pid, cr)
+	if all, err := ffcLoadMatchesCached(time.Time{}, time.Time{}); err == nil {
+		if t := ffcstats.RecentNews(ffcstats.ApplyLinks(all, links), pid, ffcVivoNames()); t != "" {
+			out = append(out, ffcbonus.NewsItem{Name: ffcRecentName, Body: []byte(t)})
+		}
+	} else {
+		logging.Error("API", "FFC news: recent:", err)
+	}
+	return append(out, ffcbonus.MailItems(gamecd, pid)...)
+}
+
+// ffcRecentName: #42 text replay item. 196 = id 96 for the game (it keeps id % 100, like mail 165..180), so it never
+// collides with admin news file 96; shown on every visit by the modded package, skipped by stock games.
+const ffcRecentName = "196"
+
+// vivos.json next to the server: {"102": "Aeros", ...} (vivosaur short names; ffc-decomp
+// `tools/online_news.py vivos --rom ROM -o vivos.json`). Optional: missing names show as "#id". Re-read every 60 s.
+var ffcVivosFile = "vivos.json"
+
+var (
+	ffcVivoMu  sync.Mutex
+	ffcVivoAt  time.Time
+	ffcVivoMap map[int]string
+)
+
+func ffcVivoNames() map[int]string {
+	ffcVivoMu.Lock()
+	defer ffcVivoMu.Unlock()
+	now := ffcNow()
+	if ffcVivoMap != nil && now.Sub(ffcVivoAt) < 60*time.Second {
+		return ffcVivoMap
+	}
+	out := map[int]string{}
+	if b, err := os.ReadFile(ffcVivosFile); err == nil {
+		var raw map[string]string
+		if err := json.Unmarshal(b, &raw); err != nil {
+			logging.Error("API", "FFC vivos.json:", err)
+		}
+		for k, v := range raw {
+			if id, err := strconv.Atoi(k); err == nil && id > 0 && id < 256 {
+				out[id] = v
+			}
+		}
+	}
+	ffcVivoMap, ffcVivoAt = out, now
+	return out
 }
 
 // ffcNewsItems: pure part of ffcNews (tests).

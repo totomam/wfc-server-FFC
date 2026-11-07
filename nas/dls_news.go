@@ -53,7 +53,7 @@ func newsItems(gamecd string, fields map[string][]byte) []ffcbonus.NewsItem {
 	newsMu.Unlock()
 	var items []ffcbonus.NewsItem
 	for _, it := range ffcbonus.NewsSource(gamecd, userID) {
-		if n, err := strconv.Atoi(it.Name); err != nil || (n < 97 || n > 99) && !ffcbonus.IsMailName(it.Name) || len(it.Body) == 0 || len(it.Body) > 0x3ff {
+		if n, err := strconv.Atoi(it.Name); err != nil || (n < 97 || n > 99) && n != 196 && !ffcbonus.IsMailName(it.Name) || len(it.Body) == 0 || len(it.Body) > 0x3ff {
 			continue
 		}
 		items = append(items, it)
