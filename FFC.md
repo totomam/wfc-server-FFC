@@ -40,3 +40,7 @@ Read-only JSON on the NAS HTTP port, no auth, CORS `*`; computed on read from `m
   printable ASCII + newlines, <= 1023 chars, atomic), `POST {"secret","id","delete":true}` removes it. Served by the
   existing Nd count/list/contents. Each id reaches a save ONCE (the game flags it), so every announcement needs a new
   id; ids 1..7 also give fossil rocks 600..606 (empty in the USA ROM), ids 8..64 rock id 0 (verify in game first).
+
+## Abuse limits (ffc-decomp ROADMAP #69, API part)
+- Public `/api/ffc/*` reads: per client IP 20 requests burst, 60/min refill (HTTP 429 + Retry-After); loaded match
+  rows cached 15 s per time window. Admin endpoints (secret) unlimited. Game protocols (GPCM/QR2/NATNEG) unchanged.

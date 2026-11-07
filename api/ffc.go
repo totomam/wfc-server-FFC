@@ -95,7 +95,7 @@ func ffcLoad(w http.ResponseWriter, r *http.Request) (url.Values, []ffcstats.Mat
 		replyError(w, http.StatusBadRequest, APIErrorInvalidQuery)
 		return nil, nil, win, false
 	}
-	ms, err := db.LoadMatches(win.from, win.to, ffcMaxRows)
+	ms, err := ffcLoadMatchesCached(win.from, win.to)
 	if err != nil {
 		replyError(w, http.StatusInternalServerError, "database_error")
 		return nil, nil, win, false
