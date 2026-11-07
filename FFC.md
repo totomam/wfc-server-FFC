@@ -79,6 +79,12 @@ Read-only JSON on the NAS HTTP port, no auth, CORS `*`; computed on read from `m
   `ratings` count + `avg_rating` (game RateRecord, one per rater), self-reported `battle_win/lose/draw`, `ghost`.
 - `GET /api/ffc/admin/ratings?secret=…&record_id=N`: every rater pid + rating, histogram, average.
 
+## Plaza ghost badges (ffc-decomp ROADMAP #78, server-only, s104)
+- Another player's Team Plaza record is served with a badge prefix on `team_name` (cut to 12 chars): `#1`..`#3` = top 3
+  of the ranked leaderboard (current season, >= 5 confirmed matches), or an admin badge from optional `badges.json`
+  next to the server (`{"<pid>": "CHAMP"}`, 1..5 printable ASCII, wins over the rank). Main profile (#53 links).
+  The requester's OWN records are never badged (the game must not upload a badge back). Recomputed every 60 s.
+
 ## Persistent player identity (ffc-decomp ROADMAP #53)
 - A player is a profile id, bound to (WFC user id of the console firmware, gsbrcd = game code + a random code the
   save's Wi-Fi user data gets on its first connection). Same console + same save = same profile; a new save, a save

@@ -21,7 +21,8 @@ func StartServer(reload bool) {
 
 	// Start SQL
 	db = database.Start(config)
-	ffcbonus.NewsSource = ffcNews // #76 in-game news (ffc_news.go)
+	ffcbonus.NewsSource = ffcNews   // #76 in-game news (ffc_news.go)
+	ffcbonus.BadgeSource = ffcBadge // #78 Plaza ghost badges (ffc_badge.go)
 
 	db.RegisterEvents(config, []string{
 		"profile_kicked",

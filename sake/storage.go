@@ -683,6 +683,7 @@ func fillResponseValues(moduleName string, profileId uint32, table *SakeTable, r
 				logging.Error(moduleName, "Failed to filter to client value for field", aurora.Cyan(field), ":", aurora.Cyan(result))
 				return ArrayOfArrayOfRecordValue{}, result
 			}
+			fieldValue.Value = ffcBadgeName(record.TableId, field, record.OwnerId, profileId, fieldValue.Value) // #78
 			value := fillValue(fieldValue.Type, fieldValue.Value)
 			valueArray.RecordValues = append(valueArray.RecordValues, RecordValue{Value: value})
 		}

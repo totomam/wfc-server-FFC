@@ -44,6 +44,10 @@ type NewsItem struct {
 // (ffc_news.go), read by the NAS (nas/dls_news.go). nil = no generated news.
 var NewsSource func(gamecd string, userID uint64) []NewsItem
 
+// BadgeSource returns a profile's Plaza ghost badge ("" = none; #78, read by sake/ffc_badge.go, set by the api
+// package ffc_badge.go). nil = no badges.
+var BadgeSource func(ownerID uint32) string
+
 type Message struct {
 	ID   int    `json:"id"`
 	Text string `json:"text"`
