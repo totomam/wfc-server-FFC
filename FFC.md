@@ -31,6 +31,14 @@ Read-only JSON on the NAS HTTP port, no auth, CORS `*`; computed on read from `m
 - Admin list: `GET /api/ffc/admin/flagged?secret=<apiSecret>&status=mismatch|single|both&days=30&limit=100` ->
   flagged rows (newest first, which side reported) + mismatch count per profile. Act with `/api/ban` (reason required).
 
+## Online-friends feed (ffc-decomp ROADMAP #56)
+- Events `player_online` (login done) and `player_offline` (connection closed): player name, friend code, the
+  player's mutual friends online now (names), players online now, game; offline adds `Online for` (e.g. `1h05m`).
+  No IP address (unlike upstream `logged_in`/`logged_out`), so safe for a public Discord channel.
+- Off by default: add `<event>player_online</event>` and `<event>player_offline</event>` to a webhook's
+  `<eventTypes>` (best a separate webhook/channel, e.g. #who-is-online). `all` also sends the IP events: avoid it
+  on a public channel.
+
 ## Live counter + admin dashboard (ffc-decomp ROADMAP #30, #33, #72)
 - `GET /api/ffc/online` (public, counts only): `online` (logged in), `matchmaking` (QR2 sessions), `in_battle`,
   `modded` / `vanilla` (QR2 `dwc_mver` != / == 90). For a web/Discord widget (#39).

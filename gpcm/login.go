@@ -425,6 +425,7 @@ func (g *GameSpySession) login(command common.GameSpyCommand) {
 			"ip_address":   g.RemoteAddr,
 		},
 	)
+	g.presenceOnline()
 }
 
 func (g *GameSpySession) exLogin(command common.GameSpyCommand) {

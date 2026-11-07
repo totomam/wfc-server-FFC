@@ -135,6 +135,7 @@ func CloseConnection(index uint64) {
 		logging.Event("logged_out", map[string]any{
 			"profile_id": session.User.ProfileId,
 		})
+		session.presenceOffline()
 	}
 
 	mutex.Lock()

@@ -132,6 +132,9 @@
                          <!-- FFC (ffc-decomp #66/#28): one per confirmed PvP match / two reports disagree -->
                          <event>match_result</event>
                          <event>match_mismatch</event>
+                         <!-- FFC (ffc-decomp #56): online-friends feed, no IP (best its own channel) -->
+                         <event>player_online</event>
+                         <event>player_offline</event>
                     </eventTypes>
                </webhook>
           </discord>
