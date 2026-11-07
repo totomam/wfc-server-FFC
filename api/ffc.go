@@ -41,6 +41,7 @@ type ffcWindow struct {
 	modded   *bool
 	statuses []string
 	season   string
+	mode     string // #35 ranked (default) | casual | all
 }
 
 func parseFFCWindow(q url.Values) (ffcWindow, bool) {
@@ -75,6 +76,11 @@ func parseFFCWindow(q url.Values) (ffcWindow, bool) {
 	default:
 		return w, false
 	}
+	switch w.mode = q.Get("mode"); w.mode {
+	case "", "ranked", "casual", "all":
+	default:
+		return w, false
+	}
 	switch q.Get("status") {
 	case "", "confirmed":
 	case "all":
@@ -100,7 +106,7 @@ func ffcLoad(w http.ResponseWriter, r *http.Request) (url.Values, []ffcstats.Mat
 		replyError(w, http.StatusInternalServerError, "database_error")
 		return nil, nil, win, false
 	}
-	return q, ffcstats.Filter(ms, win.modded, win.from, win.to, win.statuses), win, true
+	return q, ffcstats.FilterMode(ffcstats.Filter(ms, win.modded, win.from, win.to, win.statuses), win.mode), win, true
 }
 
 func qPid(q url.Values, key string) (uint32, bool) {

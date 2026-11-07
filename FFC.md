@@ -48,6 +48,12 @@ Read-only JSON on the NAS HTTP port, no auth, CORS `*`; computed on read from `m
   existing Nd count/list/contents. Each id reaches a save ONCE (the game flags it), so every announcement needs a new
   id; ids 1..7 also give fossil rocks 600..606 (empty in the USA ROM), ids 8..64 rock id 0 (verify in game first).
 
+## Ranked vs casual (ffc-decomp ROADMAP #35, server-only)
+- Each result row gets `queue` from the QR2 group holding both players at report time: Battle with Anyone (dwc_mtype
+  0/1, "anybody") = `ranked`, friend battle (2/3, "private") = `casual`, no shared group = `` (counted as ranked).
+- Every public `/api/ffc/*` stats read takes `mode=ranked` (default: all but friend battles) | `casual` | `all`
+  (independent of `queue=modded|vanilla`). Rows from before the column count as ranked.
+
 ## Event / boss Plaza teams (ffc-decomp ROADMAP #40)
 - Table `ffc_plaza_events` (record_id, name, start_at, end_at UTC; created on start + schema.sql). A dental2ds
   `tbl_main_na` record with any window is served to the game (search / random / specific, all via GetSakeRecords)

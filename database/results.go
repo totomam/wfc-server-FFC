@@ -31,10 +31,13 @@ const (
     report_b bytea,
     status character varying NOT NULL DEFAULT 'single',
     mismatch character varying NOT NULL DEFAULT '',
+    queue character varying NOT NULL DEFAULT '',
     created_at timestamp without time zone NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at timestamp without time zone NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
-CREATE INDEX IF NOT EXISTS match_results_pair_idx ON public.match_results (pid_a, pid_b, created_at)`
+CREATE INDEX IF NOT EXISTS match_results_pair_idx ON public.match_results (pid_a, pid_b, created_at);
+-- s99 #35: tables made before the queue column
+ALTER TABLE public.match_results ADD COLUMN IF NOT EXISTS queue character varying NOT NULL DEFAULT ''`
 
 	queryUserOwnsProfile = `SELECT EXISTS(SELECT 1 FROM users WHERE profile_id = $1 AND user_id = $2)`
 	queryProfileExists   = `SELECT EXISTS(SELECT 1 FROM users WHERE profile_id = $1)`
@@ -45,9 +48,9 @@ WHERE pid_a = $1 AND pid_b = $2 AND created_at > CURRENT_TIMESTAMP - interval '1
   AND status = 'single' AND (CASE WHEN $3 THEN report_a IS NULL ELSE report_b IS NULL END)
 ORDER BY created_at DESC LIMIT 1 FOR UPDATE`
 	queryInsertMatch = `INSERT INTO match_results (pid_a, pid_b, winner_pid, draw, time_up, modded, match_ver, name_a, name_b,
-team_a, team_b, report_a, report_b, status) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, 'single') RETURNING id`
+team_a, team_b, report_a, report_b, status, queue) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, 'single', $14) RETURNING id`
 	queryCompleteMatch = `UPDATE match_results SET report_a = COALESCE(report_a, $2), report_b = COALESCE(report_b, $3),
-status = $4, mismatch = $5, updated_at = CURRENT_TIMESTAMP WHERE id = $1`
+status = $4, mismatch = $5, queue = CASE WHEN queue = '' THEN $6 ELSE queue END, updated_at = CURRENT_TIMESTAMP WHERE id = $1`
 )
 
 // MatchReport is one console's validated report, already normalised to the pair order (A = lower profile id).
@@ -61,7 +64,10 @@ type MatchReport struct {
 	NameA, NameB string
 	TeamA, TeamB json.RawMessage
 	ReporterIsA  bool
-	Raw          []byte
+	// Queue (s99 #35): "ranked" = Battle with Anyone (QR2 group match type anybody), "casual" = friend battle
+	// (private), "" = unknown (no group found at report time; counted as ranked).
+	Queue string
+	Raw   []byte
 }
 
 func (c *Connection) CreateMatchResultsTable() error {
@@ -136,7 +142,7 @@ func (c *Connection) StoreMatchReportDetail(r MatchReport) (StoreResult, error) 
 	switch {
 	case errors.Is(err, pgx.ErrNoRows):
 		err = tx.QueryRow(c.ctx, queryInsertMatch, int64(r.PidA), int64(r.PidB), nullPid(r.WinnerPid), r.Draw, r.TimeUp,
-			r.Modded, int64(r.MatchVer), r.NameA, r.NameB, []byte(r.TeamA), []byte(r.TeamB), repA, repB).Scan(&id)
+			r.Modded, int64(r.MatchVer), r.NameA, r.NameB, []byte(r.TeamA), []byte(r.TeamB), repA, repB, r.Queue).Scan(&id)
 		if err != nil {
 			return StoreResult{}, err
 		}
@@ -148,7 +154,7 @@ func (c *Connection) StoreMatchReportDetail(r MatchReport) (StoreResult, error) 
 		if mismatch != "" {
 			status = "mismatch"
 		}
-		if _, err = tx.Exec(c.ctx, queryCompleteMatch, id, repA, repB, status, mismatch); err != nil {
+		if _, err = tx.Exec(c.ctx, queryCompleteMatch, id, repA, repB, status, mismatch, r.Queue); err != nil {
 			return StoreResult{}, err
 		}
 	}

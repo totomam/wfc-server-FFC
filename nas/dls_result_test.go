@@ -4,10 +4,12 @@ import (
 	"encoding/binary"
 	"encoding/hex"
 	"hash/crc32"
+	"strconv"
 	"strings"
 	"testing"
 	"wwfc/common"
 	"wwfc/database"
+	"wwfc/qr2"
 )
 
 // Golden report from the client builder (ffc-decomp mods/net_balance/test/net_result_test.c, last NrBuild call):
@@ -152,5 +154,25 @@ func TestCompareMatch(t *testing.T) {
 	}
 	if s := database.CompareMatch(m, &w, false, true, m.MatchVer, m.TeamB, m.TeamB); s != "team_a" {
 		t.Fatalf("team mismatch not flagged: %q", s)
+	}
+}
+
+func TestQueueFromGroups(t *testing.T) {
+	pl := func(ids ...string) map[string]qr2.PlayerInfo {
+		m := map[string]qr2.PlayerInfo{}
+		for i, id := range ids {
+			m[strconv.Itoa(i)] = qr2.PlayerInfo{ProfileID: id}
+		}
+		return m
+	}
+	gs := []qr2.GroupInfo{{MatchType: "anybody", Players: pl("1", "2")}, {MatchType: "private", Players: pl("3", "4")},
+		{MatchType: "unknown", Players: pl("5", "6")}, {MatchType: "anybody", Players: pl("7")}, {MatchType: "private", Players: pl("8")}}
+	for _, c := range []struct {
+		a, b uint32
+		want string
+	}{{1, 2, "ranked"}, {3, 4, "casual"}, {5, 6, ""}, {7, 8, ""}, {1, 4, ""}} {
+		if got := queueFromGroups(gs, c.a, c.b); got != c.want {
+			t.Errorf("%d,%d: %q want %q", c.a, c.b, got, c.want)
+		}
 	}
 }

@@ -26,6 +26,7 @@ type Match struct {
 	TeamA     []Pick    `json:"team_a"`
 	TeamB     []Pick    `json:"team_b"`
 	Status    string    `json:"status"`
+	Queue     string    `json:"queue"` // ranked | casual | "" unknown (#35)
 	CreatedAt time.Time `json:"created_at"`
 }
 
@@ -252,6 +253,21 @@ func H2H(ms []Match, a, b uint32) HeadToHead {
 
 // Filter keeps the rows of one queue and window: modded nil = both queues; zero times = open-ended; statuses
 // empty = only "confirmed".
+// FilterMode (s99 #35): "" / "ranked" = every match except friend battles (unknown counts as ranked, so rows from
+// before the queue column stay on the leaderboard); "casual" = friend battles only; "all" = no filter.
+func FilterMode(ms []Match, mode string) []Match {
+	if mode == "all" {
+		return ms
+	}
+	out := []Match{}
+	for _, m := range ms {
+		if (m.Queue == "casual") == (mode == "casual") {
+			out = append(out, m)
+		}
+	}
+	return out
+}
+
 func Filter(ms []Match, modded *bool, from, to time.Time, statuses []string) []Match {
 	if len(statuses) == 0 {
 		statuses = []string{"confirmed"}

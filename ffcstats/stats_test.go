@@ -1,6 +1,7 @@
 package ffcstats
 
 import (
+	"fmt"
 	"math"
 	"strings"
 	"testing"
@@ -127,6 +128,21 @@ func TestSeasons(t *testing.T) {
 	for _, bad := range []string{"a\tb\n", "a\tb\t2026-13-01\n", "a\tA\t2026-12-01\nb\tB\t2026-11-01\n", "a\tA\t2026-11-01\na\tB\t2026-12-01\n"} {
 		if _, err := ParseSeasons(strings.NewReader(bad)); err == nil {
 			t.Fatalf("want error for %q", bad)
+		}
+	}
+}
+
+func TestFilterMode(t *testing.T) {
+	ms := []Match{{ID: 1, Queue: "ranked"}, {ID: 2, Queue: "casual"}, {ID: 3}}
+	ids := func(x []Match) (s []int64) {
+		for _, m := range x {
+			s = append(s, m.ID)
+		}
+		return
+	}
+	for mode, want := range map[string][]int64{"": {1, 3}, "ranked": {1, 3}, "casual": {2}, "all": {1, 2, 3}} {
+		if got := ids(FilterMode(ms, mode)); fmt.Sprint(got) != fmt.Sprint(want) {
+			t.Errorf("%q: %v want %v", mode, got, want)
 		}
 	}
 }

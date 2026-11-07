@@ -10,6 +10,7 @@ import (
 	"wwfc/common"
 	"wwfc/database"
 	"wwfc/logging"
+	"wwfc/qr2"
 
 	"github.com/logrusorgru/aurora/v3"
 )
@@ -137,6 +138,34 @@ func (r ResultReport) toMatchReport(raw []byte) database.MatchReport {
 
 // dlsResult answers action=result: "ok <row id> <status>" or "err <reason>" (the client only checks that a body came
 // back; the reply is for logs and tests).
+// matchQueueOf (s99 #35, server-only ranked/casual split): the QR2 group holding both players at report time.
+// "Battle with Anyone" groups have dwc_mtype 0/1 (qr2 "anybody") -> "ranked"; friend battles connect to a friend's
+// game server (dwc_mtype 2/3, "private") -> "casual"; no shared group (already left) -> "" (counted as ranked).
+var matchQueueOf = func(a, b uint32) string {
+	return queueFromGroups(qr2.GetGroups([]string{"dental2ds"}, []string{}, false), a, b)
+}
+
+func queueFromGroups(groups []qr2.GroupInfo, a, b uint32) string {
+	sa, sb := strconv.FormatUint(uint64(a), 10), strconv.FormatUint(uint64(b), 10)
+	for _, g := range groups {
+		var hasA, hasB bool
+		for _, p := range g.Players {
+			hasA = hasA || p.ProfileID == sa
+			hasB = hasB || p.ProfileID == sb
+		}
+		if hasA && hasB {
+			switch g.MatchType {
+			case "anybody":
+				return "ranked"
+			case "private":
+				return "casual"
+			}
+			return ""
+		}
+	}
+	return ""
+}
+
 func dlsResult(moduleName string, fields map[string][]byte) []byte {
 	raw := append(append([]byte{}, fields["attr1"]...), fields["attr2"]...)
 	r, err := parseResultReport(raw)
@@ -162,6 +191,7 @@ func dlsResult(moduleName string, fields map[string][]byte) []byte {
 		return []byte("err opponent")
 	}
 	m := r.toMatchReport(raw)
+	m.Queue = matchQueueOf(m.PidA, m.PidB)
 	res, err := resultDB.StoreMatchReportDetail(m)
 	if err != nil {
 		logging.Error(moduleName, "result: store:", err)

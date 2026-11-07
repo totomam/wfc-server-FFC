@@ -5,6 +5,7 @@ import (
 	"hash/crc32"
 	"os"
 	"testing"
+	"time"
 	"wwfc/common"
 	"wwfc/database"
 )
@@ -46,5 +47,44 @@ func TestResultPostgresPair(t *testing.T) {
 	send(a, "4242")
 	if r := send(mirror(1), "777"); r[len(r)-8:] != "mismatch" { // both claim to have lost
 		t.Fatalf("contradicting report: %q", r)
+	}
+}
+
+// s99 #35: the queue tag comes from the QR2 group at report time; a later report fills an unknown ("") queue.
+func TestResultPostgresQueue(t *testing.T) {
+	if os.Getenv("FFC_TEST_PG") != "1" {
+		t.Skip("FFC_TEST_PG != 1")
+	}
+	db := database.Start(common.Config{Username: "wwfc", Password: "CHANGEME", DatabaseAddress: "127.0.0.1", DatabaseName: "wwfc"})
+	defer db.Close()
+	if err := db.CreateMatchResultsTable(); err != nil {
+		t.Fatal(err)
+	}
+	oldDB, oldQ := resultDB, matchQueueOf
+	resultDB = &db
+	defer func() { resultDB, matchQueueOf = oldDB, oldQ }()
+	f := goldenFields(t)
+	a := append(f["attr1"], f["attr2"]...)
+	b := append([]byte{}, a...)
+	b[1], b[3] = 0, 1
+	copy(b[4:8], a[8:12])
+	copy(b[8:12], a[4:8])
+	binary.LittleEndian.PutUint32(b[resultCrcOfs:], crc32.ChecksumIEEE(b[:resultCrcOfs]))
+	send := func(raw []byte, user string) string {
+		return string(dlsResult("t", map[string][]byte{"attr1": raw[:96], "attr2": raw[96:], "userid": []byte(user)}))
+	}
+	matchQueueOf = func(uint32, uint32) string { return "" } // first console: group already gone
+	send(a, "4242")
+	matchQueueOf = func(uint32, uint32) string { return "casual" }
+	if r := send(b, "777"); r[len(r)-9:] != "confirmed" {
+		t.Fatal(r)
+	}
+	ms, err := db.LoadMatches(time.Now().Add(-time.Hour), time.Time{}, 100000)
+	if err != nil || len(ms) == 0 {
+		t.Fatal(err)
+	}
+	last := ms[len(ms)-1]
+	if last.Queue != "casual" || last.Status != "confirmed" {
+		t.Fatalf("%+v", last)
 	}
 }

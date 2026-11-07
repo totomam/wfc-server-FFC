@@ -198,6 +198,7 @@ CREATE TABLE IF NOT EXISTS public.match_results (
     report_b bytea,
     status character varying NOT NULL DEFAULT 'single',
     mismatch character varying NOT NULL DEFAULT '',
+    queue character varying NOT NULL DEFAULT '',
     created_at timestamp without time zone NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at timestamp without time zone NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
