@@ -37,6 +37,11 @@ Read-only JSON on the NAS HTTP port, no auth, CORS `*`; computed on read from `m
 - `GET /api/ffc/admin/dashboard?secret=<apiSecret>&days=14`: online players (pid, name, GP status), match activity
   (per UTC hour + per day, queue split, status counts, peak hour), matches in 24 h, mismatch count per profile.
 
+## Web presence widget (ffc-decomp ROADMAP #39)
+- `GET /ffc/widget[?top=N]` (N 1..50, default 10): static HTML (inline script/style, no external JS/CSS/fonts) that reads
+  `/api/ffc/online` + `/api/ffc/leaderboard` from the same host every 60 s; names via textContent only. CSP
+  `connect-src 'self'`, `frame-ancestors *`. Embed: `<iframe src="https://SERVER/ffc/widget?top=5" width="320" height="360" style="border:0"></iframe>`.
+
 ## Bonus Data messages (ffc-decomp ROADMAP #96, #38)
 - `GET /api/ffc/admin/bonus?secret=…` lists dlc/VDEE messages; `POST {"secret","id","text"}` writes one (id 1..64,
   printable ASCII + newlines, <= 1023 chars, atomic), `POST {"secret","id","delete":true}` removes it. Served by the
