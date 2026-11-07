@@ -80,4 +80,9 @@ func (c *Connection) UpdateTables() {
 	if _, err = c.pool.Exec(c.ctx, ffcPlazaEventsTable); err != nil {
 		logging.Error("DATABASE", "Failed to create the ffc_plaza_events table:", err)
 	}
+
+	// FFC player identity links (player_links.go, ROADMAP #53).
+	if err = c.CreatePlayerLinksTable(); err != nil {
+		logging.Error("DATABASE", "Failed to create the ffc_player_links table:", err)
+	}
 }

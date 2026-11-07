@@ -106,12 +106,14 @@ func ffcLoad(w http.ResponseWriter, r *http.Request) (url.Values, []ffcstats.Mat
 		replyError(w, http.StatusInternalServerError, "database_error")
 		return nil, nil, win, false
 	}
-	return q, ffcstats.FilterMode(ffcstats.Filter(ms, win.modded, win.from, win.to, win.statuses), win.mode), win, true
+	ms = ffcstats.ApplyLinks(ffcstats.Filter(ms, win.modded, win.from, win.to, win.statuses), ffcPlayerLinks())
+	return q, ffcstats.FilterMode(ms, win.mode), win, true
 }
 
+// qPid: a profile id query parameter, resolved to its canonical profile (#53 links).
 func qPid(q url.Values, key string) (uint32, bool) {
 	v, err := strconv.ParseUint(q.Get(key), 10, 32)
-	return uint32(v), err == nil && v != 0
+	return ffcstats.Resolve(ffcPlayerLinks(), uint32(v)), err == nil && v != 0
 }
 
 func HandleFFCLeaderboard(w http.ResponseWriter, r *http.Request) {

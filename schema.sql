@@ -229,6 +229,22 @@ CREATE INDEX IF NOT EXISTS ffc_plaza_events_record_idx ON public.ffc_plaza_event
 ALTER TABLE public.ffc_plaza_events OWNER TO wiilink;
 
 --
+-- Name: ffc_player_links; Type: TABLE; Schema: public; Owner: wiilink
+-- FFC persistent player identity (database/player_links.go): alias profile -> canonical profile for the FFC stats.
+--
+
+CREATE TABLE IF NOT EXISTS public.ffc_player_links (
+    alias_pid bigint PRIMARY KEY,
+    canonical_pid bigint NOT NULL,
+    note character varying NOT NULL DEFAULT '' CHECK (LENGTH(note) <= 64),
+    created_at timestamp without time zone NOT NULL DEFAULT (now() AT TIME ZONE 'UTC'),
+    CHECK (alias_pid <> canonical_pid)
+);
+CREATE INDEX IF NOT EXISTS ffc_player_links_canonical_idx ON public.ffc_player_links (canonical_pid);
+
+ALTER TABLE public.ffc_player_links OWNER TO wiilink;
+
+--
 -- PostgreSQL database dump complete
 --
 

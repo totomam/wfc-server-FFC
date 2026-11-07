@@ -68,6 +68,17 @@ Read-only JSON on the NAS HTTP port, no auth, CORS `*`; computed on read from `m
   `ratings` count + `avg_rating` (game RateRecord, one per rater), self-reported `battle_win/lose/draw`, `ghost`.
 - `GET /api/ffc/admin/ratings?secret=…&record_id=N`: every rater pid + rating, histogram, average.
 
+## Persistent player identity (ffc-decomp ROADMAP #53)
+- A player is a profile id, bound to (WFC user id of the console firmware, gsbrcd = game code + a random code the
+  save's Wi-Fi user data gets on its first connection). Same console + same save = same profile; a new save, a save
+  moved to another DS (the game asks to "Update Wi-Fi User Information") or a new emulator firmware = a new profile
+  (melonDS-verified, decomp docs/sessions/s100-online/identity.md).
+- `GET /api/ffc/admin/links?secret=…`; `POST /api/ffc/admin/links {"secret","alias","canonical","note"}` links an
+  extra profile to the main one (one level: linking to an alias uses its canonical; old links follow);
+  `{"secret","alias","delete":true}` unlinks. Table `ffc_player_links`.
+- Every public `/api/ffc/*` stat (leaderboard, Elo, h2h, matches `pid=`) counts an alias as its canonical; a
+  match between two linked profiles is dropped from the stats. `match_results` rows are never rewritten.
+
 ## Abuse limits (ffc-decomp ROADMAP #69, API part)
 - Public `/api/ffc/*` reads: per client IP 20 requests burst, 60/min refill (HTTP 429 + Retry-After); loaded match
   rows cached 15 s per time window. Admin endpoints (secret) unlimited. Game protocols (GPCM/QR2/NATNEG) unchanged.
