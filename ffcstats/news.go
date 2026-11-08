@@ -14,7 +14,7 @@ import (
 const (
 	newsMax  = 0x3ff
 	newsCols = 36 // measured ~37-38 (s104-online)
-	newsRows = 10
+	newsRows = 8 // s113: 10 rows ran off the top of the box in melonDS (box grows upward); 7 lines fit
 )
 
 func newsName(s string) string {
@@ -151,7 +151,7 @@ func RecentNews(ms []Match, pid uint32, vivo map[int]string) string {
 	var b strings.Builder
 	b.WriteString("YOUR LAST MATCHES")
 	for i, m := range mine {
-		if i >= 3 {
+		if i >= 2 { // s113: 3 matches = 10 rows overflowed the box
 			break
 		}
 		opp, myT, oppT := m.NameB, m.TeamA, m.TeamB

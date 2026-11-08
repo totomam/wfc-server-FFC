@@ -35,8 +35,8 @@ func TestNewsTexts(t *testing.T) {
 	if s := ChallengesNews([]ChallengeResult{r}, 2); s != "CHALLENGES\nWin 3 with Frigi\n 0/3 ends Nov 8" {
 		t.Fatalf("challenges open %q", s)
 	}
-	six := []ChallengeResult{r, r, r, r, r, r} // 1 + 2 rows each: only 4 fit the measured 10-row box
-	if s := ChallengesNews(six, 1); strings.Count(s, "\n")+1 != 9 {
+	six := []ChallengeResult{r, r, r, r, r, r} // 1 + 2 rows each: only 3 fit the 8-row box (s113)
+	if s := ChallengesNews(six, 1); strings.Count(s, "\n")+1 != 7 {
 		t.Fatalf("rows cap %q", s)
 	}
 	lc := r

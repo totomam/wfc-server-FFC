@@ -25,7 +25,7 @@ func TestRecentNews(t *testing.T) {
 	}
 	got := RecentNews(ms, 1, vivo)
 	want := "YOUR LAST MATCHES\nLOSS vs Bob (casual)\n you: Aeros\n foe: Aeros,Zongazonga\n" +
-		"DRAW vs Cy (ranked)\n you: Aeros\n foe: #77\nWIN vs Dee (ranked)\n you: Aeros\n foe: T-Rex"
+		"DRAW vs Cy (ranked)\n you: Aeros\n foe: #77"
 	if got != want {
 		t.Fatalf("got\n%s\nwant\n%s", got, want)
 	}
