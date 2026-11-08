@@ -118,6 +118,14 @@ Read-only JSON on the NAS HTTP port, no auth, CORS `*`; computed on read from `m
 - Every public `/api/ffc/*` stat (leaderboard, Elo, h2h, matches `pid=`) counts an alias as its canonical; a
   match between two linked profiles is dropped from the stats. `match_results` rows are never rewritten.
 
+## In-game leaderboard name (ffc-decomp ROADMAP #52, s113)
+- The modded ROM asks Nd action `lbname` after the modes; on "no name yet" it opens the game's own name keyboard once,
+  then sends the text. The name (1..16 characters, `profanity.txt` words refused) is stored per profile
+  (`ffc_lb_names`, all FFC profiles of the console's user id; a later new save on that console gets it too).
+- Every `/api/ffc/*` stats view, the in-game news and `/ffc/widget` show it instead of the save's player name.
+- Moderation: `GET /api/ffc/admin/names?secret=…` lists them; `POST /api/ffc/admin/names {"secret","pid"}` deletes one
+  (the game asks that player again on its next Wi-Fi visit).
+
 ## Tournaments + rewards feed (ffc-decomp ROADMAP #45, #43, server part)
 - `tournaments.json` in the server working dir (example `tournaments.example.json`): single-elimination brackets,
   `players` in seed order (pairs 1-2, 3-4, ... in round 1; padded with byes), `start`/`end` UTC, `mode` casual

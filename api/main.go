@@ -5,6 +5,7 @@ import (
 	"wwfc/common"
 	"wwfc/database"
 	"wwfc/ffcbonus"
+	"wwfc/ffcstats"
 )
 
 var (
@@ -23,6 +24,7 @@ func StartServer(reload bool) {
 	db = database.Start(config)
 	ffcbonus.NewsSource = ffcNews   // #76 in-game news (ffc_news.go)
 	ffcbonus.BadgeSource = ffcBadge // #78 Plaza ghost badges (ffc_badge.go)
+	ffcstats.Names = ffcLbNames     // #52 leaderboard names (ffc_lbnames.go)
 
 	db.RegisterEvents(config, []string{
 		"profile_kicked",
@@ -62,6 +64,7 @@ func RegisterHandlers(mux *http.ServeMux) {
 	mux.HandleFunc("/api/ffc/plaza", ffcLimited(HandleFFCPlaza))
 	mux.HandleFunc("/api/ffc/admin/ratings", HandleFFCRatings)
 	mux.HandleFunc("/api/ffc/admin/links", HandleFFCLinks)
+	mux.HandleFunc("/api/ffc/admin/names", HandleFFCNames)
 	mux.HandleFunc("/api/ffc/admin/banned", HandleFFCBanned)
 	mux.HandleFunc("/api/ffc/banned", ffcLimited(HandleFFCBannedPublic))
 	mux.HandleFunc("/ffc/widget", HandleFFCWidget)

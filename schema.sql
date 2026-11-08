@@ -229,6 +229,19 @@ CREATE INDEX IF NOT EXISTS ffc_plaza_events_record_idx ON public.ffc_plaza_event
 ALTER TABLE public.ffc_plaza_events OWNER TO wiilink;
 
 --
+-- Name: ffc_lb_names; Type: TABLE; Schema: public; Owner: wiilink
+-- FFC leaderboard names typed in game (database/lb_names.go, ROADMAP #52).
+--
+
+CREATE TABLE IF NOT EXISTS public.ffc_lb_names (
+    profile_id bigint PRIMARY KEY,
+    name character varying NOT NULL CHECK (LENGTH(name) BETWEEN 1 AND 16),
+    updated_at timestamp without time zone NOT NULL DEFAULT (now() AT TIME ZONE 'UTC')
+);
+
+ALTER TABLE public.ffc_lb_names OWNER TO wiilink;
+
+--
 -- Name: ffc_player_links; Type: TABLE; Schema: public; Owner: wiilink
 -- FFC persistent player identity (database/player_links.go): alias profile -> canonical profile for the FFC stats.
 --

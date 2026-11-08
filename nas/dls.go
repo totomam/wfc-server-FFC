@@ -26,6 +26,7 @@ var dlsActions = map[string]func(moduleName string, fields map[string][]byte) []
 	"result":   dlsResult,
 	"motd":     dlsMotd,
 	"modes":    dlsModes,
+	"lbname":   dlsLbName,
 }
 
 // pkgMaxLen is the client's package rx limit (PKG_MAX_LEN, docs/online/PACKAGE_WIRE.md in ffc-decomp).

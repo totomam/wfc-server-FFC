@@ -85,4 +85,9 @@ func (c *Connection) UpdateTables() {
 	if err = c.CreatePlayerLinksTable(); err != nil {
 		logging.Error("DATABASE", "Failed to create the ffc_player_links table:", err)
 	}
+
+	// FFC leaderboard names (lb_names.go, ROADMAP #52).
+	if err = c.CreateLbNamesTable(); err != nil {
+		logging.Error("DATABASE", "Failed to create the ffc_lb_names table:", err)
+	}
 }

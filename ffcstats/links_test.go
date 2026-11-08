@@ -33,3 +33,18 @@ func TestApplyLinks(t *testing.T) {
 		t.Fatal("resolve")
 	}
 }
+
+func TestApplyLinksNames(t *testing.T) {
+	old := Names
+	defer func() { Names = old }()
+	Names = func() map[uint32]string { return map[uint32]string{20: "Typed"} }
+	ms := []Match{{PidA: 10, PidB: 30, NameA: "Save", NameB: "Other"}}
+	got := ApplyLinks(ms, map[uint32]uint32{10: 20})
+	if got[0].NameA != "Typed" || got[0].NameB != "Other" || got[0].PidA != 20 {
+		t.Fatalf("got %+v", got[0])
+	}
+	got = ApplyLinks([]Match{{PidA: 20, PidB: 30, NameA: "Save"}}, nil)
+	if got[0].NameA != "Typed" {
+		t.Fatalf("no links: %+v", got[0])
+	}
+}

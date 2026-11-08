@@ -60,6 +60,7 @@ func StartServer(reload bool) {
 		logging.Error("NAS", "match_results table:", err)
 	}
 	resultDB = &db
+	lbNameDB = &db
 
 	err := CacheProfanityFile()
 	if err != nil {
