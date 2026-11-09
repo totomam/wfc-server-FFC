@@ -184,3 +184,12 @@ Read-only JSON on the NAS HTTP port, no auth, CORS `*`; computed on read from `m
   `package/<game>.<mode>.bin` / `balance/<game>.<mode>.bin` (missing -> base). The s106+ modded ROM asks "Play this
   battle with the rules: <display>?" per mode (current first) and re-fetches on a different pick; matchmaking splits
   modes by package/table crc. Each mode package: own counter sequence (the loader keeps one replay floor per mode).
+
+## Stage-0 packages (ffc-decomp docs/online/STAGE0.md, s116 + s125)
+- Run dir `boot/`: `VDEE.bin` (default manifest), `VDEE.<mode>.bin` (mode in `package/modes.tsv`), `parts/<hex16>.bin`
+  (content-addressed, shared). Nd actions `boot` / `bootpart` serve them (nas/dls_boot.go).
+- Upload (admin, apiSecret): `POST /api/ffc/admin/boot {"secret","mode","display","manifest":b64,"parts":[b64..],"force"}`;
+  checks format/bounds + every part's length and SHA-512 against the manifest (never the signature: consoles do), writes
+  parts first, manifest last (atomic renames); `display` adds/updates the modes.tsv row; counter <= installed refused
+  unless `force`. `GET /api/ffc/admin/boot?secret=…` lists manifests (counter, label, parts, missing, listed).
+  Client: ffc-decomp `tools/online_upload.py`.
