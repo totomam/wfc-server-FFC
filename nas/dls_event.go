@@ -10,8 +10,8 @@ import (
 
 // Dated package overrides (ffc-decomp ROADMAP #82 holiday / event reskins, s106-online). package/events.tsv lists
 // windows "<event>\t<start>\t<end>" (RFC 3339 or YYYY-MM-DD = 00:00 UTC; end exclusive; '#' comments). While a
-// window is open and package/<game>.<event>.bin exists, the "package" action serves that file instead of
-// <game>.bin; balance/<game>.<event>.bin likewise overrides the table when present. First open window wins.
+// window is open and boot/<game>.<event>.bin exists, the "boot" action serves that manifest instead of <game>.bin
+// (s127: the v1 package/ + balance/ files are retired; events.tsv itself still lives in package/). First open window wins.
 // Every event package is a full signed package (hack code + reskin) and must carry a HIGHER counter than the base
 // package, and the base package re-signed with a higher counter again after the event: the loader refuses a lower
 // counter until the game restarts (anti-replay floor per boot, net_pkg.c).

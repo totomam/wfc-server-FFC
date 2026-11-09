@@ -1,7 +1,6 @@
 package nas
 
 import (
-	"bytes"
 	"os"
 	"path/filepath"
 	"testing"
@@ -10,9 +9,9 @@ import (
 
 func TestDlsPackageEvent(t *testing.T) {
 	dir, bdir := t.TempDir(), t.TempDir()
-	oldP, oldB := packageDir, balanceDir
-	packageDir, balanceDir = dir, bdir
-	defer func() { packageDir, balanceDir = oldP, oldB }()
+	oldP := packageDir
+	packageDir = dir
+	defer func() { packageDir = oldP }()
 	w := func(d, n, s string) {
 		if err := os.WriteFile(filepath.Join(d, n), []byte(s), 0o644); err != nil {
 			t.Fatal(err)
@@ -46,11 +45,11 @@ func TestDlsPackageEvent(t *testing.T) {
 	}
 	// live action with an always-open window: the event file is served
 	w(dir, eventsFile, "xmas\t2000-01-01\t2200-01-01\n")
-	if got := dlsPackage("test", map[string][]byte{"rhgamecd": []byte("VDEE")}); !bytes.Equal(got, []byte("xmas")) {
-		t.Errorf("dlsPackage event: got %q", got)
+	if got := filepath.Base(modeFile(dir, "VDEE", map[string][]byte{"rhgamecd": []byte("VDEE")}, time.Now())); got != "VDEE.xmas.bin" {
+		t.Errorf("modeFile event: got %q", got)
 	}
 	os.Remove(filepath.Join(dir, eventsFile))
-	if got := dlsPackage("test", map[string][]byte{"rhgamecd": []byte("VDEE")}); !bytes.Equal(got, []byte("base")) {
-		t.Errorf("dlsPackage: got %q", got)
+	if got := filepath.Base(modeFile(dir, "VDEE", map[string][]byte{"rhgamecd": []byte("VDEE")}, time.Now())); got != "VDEE.bin" {
+		t.Errorf("modeFile: got %q", got)
 	}
 }

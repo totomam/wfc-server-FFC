@@ -2,14 +2,11 @@ package nas
 
 import (
 	"encoding/base64"
-	"encoding/binary"
-	"hash/crc32"
 	"net/http"
 	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
-	"time"
 	"wwfc/common"
 	"wwfc/ffcbonus"
 	"wwfc/logging"
@@ -21,8 +18,6 @@ var dlsActions = map[string]func(moduleName string, fields map[string][]byte) []
 	"count":    dlsCount,
 	"list":     dlsList,
 	"contents": dlsContents,
-	"balance":  dlsBalance,
-	"package":  dlsPackage,
 	"result":   dlsResult,
 	"motd":     dlsMotd,
 	"modes":    dlsModes,
@@ -31,9 +26,6 @@ var dlsActions = map[string]func(moduleName string, fields map[string][]byte) []
 	"boot":     dlsBoot,
 	"bootpart": dlsBootPart,
 }
-
-// pkgMaxLen is the client's package rx limit (PKG_MAX_LEN, docs/online/PACKAGE_WIRE.md in ffc-decomp).
-const pkgMaxLen = 48 * 1024
 
 func handleDownloadEndpoint(w http.ResponseWriter, r *http.Request) {
 	moduleName := getModuleName(r)
@@ -138,36 +130,6 @@ func dlsContents(moduleName string, fields map[string][]byte) []byte {
 	return nil
 }
 
-// dlsBalance serves the wire-format table from docs/online/BALANCE_WIRE.md (ffc-decomp repo) for the "balance"
-// Nd action (mods/net_balance, same free-form-action mechanism as "count"/"list"/"contents": src/ov001/setupHttp.c
-// POSTs whatever action string the client asks for to this same endpoint). A missing file -> a well-formed EMPTY
-// table (count=0, correct CRC), not an error response: the client's BalanceParse must see one well-formed shape or
-// the other, never a malformed one it has to special-case.
-func dlsBalance(moduleName string, fields map[string][]byte) []byte {
-	path := modeFile(balanceDir, string(fields["rhgamecd"]), fields, time.Now())
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return emptyBalanceTable()
-	}
-	return data
-}
-
-// dlsPackage serves the SIGNED code package (docs/online/PACKAGE_WIRE.md, ffc-decomp; built + signed offline by
-// tools/online_pkg.py on the key holder's PC) for the "package" Nd action. The server never signs or checks the
-// signature: the client verifies Ed25519 itself. No file (or one over the client's limit) -> "NONE", which fails
-// the client's PkgCheck = vanilla rules (stock bytes), the same as a stock server.
-func dlsPackage(moduleName string, fields map[string][]byte) []byte {
-	path := modeFile(packageDir, string(fields["rhgamecd"]), fields, time.Now())
-	data, err := os.ReadFile(path)
-	if err != nil || len(data) > pkgMaxLen {
-		if err == nil {
-			logging.Error(moduleName, "package too large:", aurora.Cyan(len(data)))
-		}
-		return []byte("NONE")
-	}
-	return data
-}
-
 // dlsMotd serves the login MOTD (ffc-decomp ROADMAP #54, s105-online; ffcbonus/motd.go) for the "motd" Nd action
 // of the modded loader. No text -> an empty body (the client shows no box). Only the loader asks: stock games never.
 func dlsMotd(moduleName string, fields map[string][]byte) []byte {
@@ -176,16 +138,6 @@ func dlsMotd(moduleName string, fields map[string][]byte) []byte {
 		return []byte{}
 	}
 	return []byte(s)
-}
-
-func emptyBalanceTable() []byte {
-	buf := make([]byte, 16) // 12-byte header + 0 records + 4-byte CRC32, count == 0
-	copy(buf[0:4], "FFCB")
-	buf[4] = 1 // version
-	binary.LittleEndian.PutUint16(buf[8:10], 0)
-	crc := crc32.ChecksumIEEE(buf[0:12])
-	binary.LittleEndian.PutUint32(buf[12:16], crc)
-	return buf
 }
 
 func isValidRHGameCode(rhgamecd string) bool {

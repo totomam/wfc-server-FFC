@@ -17,7 +17,6 @@ import (
 
 var (
 	dlcDir     = "./dlc"
-	balanceDir = "./balance"
 	packageDir = "./package"
 )
 

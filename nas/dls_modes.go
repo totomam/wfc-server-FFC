@@ -9,10 +9,9 @@ import (
 )
 
 // Rule-set modes (ffc-decomp ROADMAP #44, s106-online). package/modes.tsv lists "<mode>\t<display name>" (<= 4
-// lines; mode "default" = the base files <game>.bin, else a plain name). The modded loader fetches the list (Nd action
-// "modes"), asks the player per mode at Battle with Anyone / with a Friend, and re-fetches "package" + "balance" with
-// attr1 = <mode> when the pick differs from what it holds: served from <dir>/<game>.<mode>.bin (missing -> the base
-// file). Matchmaking already splits players by table/package crc (dwc_mver), so modes never meet.
+// lines; mode "default" = the base files <game>.bin, else a plain name). The stage-0 package fetches the list (Nd
+// action "modes"), More > Game Mode picks one and re-fetches "boot" with attr1 = <mode>: served from
+// boot/<game>.<mode>.bin (missing -> the base file). s127: the v1 "package" + "balance" actions are retired. Matchmaking already splits players by table/package crc (dwc_mver), so modes never meet.
 var modesFile = "modes.tsv"
 
 const maxModes = 4
