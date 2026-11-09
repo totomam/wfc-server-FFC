@@ -25,6 +25,7 @@ var dlsActions = map[string]func(moduleName string, fields map[string][]byte) []
 	"hub":      dlsHub,
 	"boot":     dlsBoot,
 	"bootpart": dlsBootPart,
+	"table":    dlsTable,
 }
 
 func handleDownloadEndpoint(w http.ResponseWriter, r *http.Request) {
