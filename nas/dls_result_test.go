@@ -155,6 +155,9 @@ func TestCompareMatch(t *testing.T) {
 	if s := database.CompareMatch(m, &w, false, true, m.MatchVer, m.TeamB, m.TeamB); s != "team_a" {
 		t.Fatalf("team mismatch not flagged: %q", s)
 	}
+	if s := database.CompareMatch(m, &w, false, !m.TimeUp, m.MatchVer, m.TeamA, m.TeamB); s != "" {
+		t.Fatalf("time_up difference flagged (stale per-console byte, s119): %q", s)
+	}
 }
 
 func TestQueueFromGroups(t *testing.T) {

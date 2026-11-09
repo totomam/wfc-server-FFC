@@ -50,7 +50,8 @@ ORDER BY created_at DESC LIMIT 1 FOR UPDATE`
 	queryInsertMatch = `INSERT INTO match_results (pid_a, pid_b, winner_pid, draw, time_up, modded, match_ver, name_a, name_b,
 team_a, team_b, report_a, report_b, status, queue) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, 'single', $14) RETURNING id`
 	queryCompleteMatch = `UPDATE match_results SET report_a = COALESCE(report_a, $2), report_b = COALESCE(report_b, $3),
-status = $4, mismatch = $5, queue = CASE WHEN queue = '' THEN $6 ELSE queue END, updated_at = CURRENT_TIMESTAMP WHERE id = $1`
+status = $4, mismatch = $5, queue = CASE WHEN queue = '' THEN $6 ELSE queue END, time_up = time_up AND $7,
+updated_at = CURRENT_TIMESTAMP WHERE id = $1`
 )
 
 // MatchReport is one console's validated report, already normalised to the pair order (A = lower profile id).
@@ -154,7 +155,7 @@ func (c *Connection) StoreMatchReportDetail(r MatchReport) (StoreResult, error) 
 		if mismatch != "" {
 			status = "mismatch"
 		}
-		if _, err = tx.Exec(c.ctx, queryCompleteMatch, id, repA, repB, status, mismatch, r.Queue); err != nil {
+		if _, err = tx.Exec(c.ctx, queryCompleteMatch, id, repA, repB, status, mismatch, r.Queue, r.TimeUp); err != nil {
 			return StoreResult{}, err
 		}
 	}
@@ -162,7 +163,9 @@ func (c *Connection) StoreMatchReportDetail(r MatchReport) (StoreResult, error) 
 }
 
 // CompareMatch returns "" when the second report agrees with the stored row, else the first differing field.
-func CompareMatch(r MatchReport, winner *int64, draw, timeUp bool, matchVer uint32, teamA, teamB []byte) string {
+// time_up is not compared (s119-online): the game sets the console's scene+0x6b8 byte on a time-limit end but never
+// clears it, so a console can report a stale 1; the row keeps time_up only when both reports say so (AND).
+func CompareMatch(r MatchReport, winner *int64, draw, _ bool, matchVer uint32, teamA, teamB []byte) string {
 	var w uint32
 	if winner != nil {
 		w = uint32(*winner)
@@ -170,8 +173,6 @@ func CompareMatch(r MatchReport, winner *int64, draw, timeUp bool, matchVer uint
 	switch {
 	case w != r.WinnerPid || draw != r.Draw:
 		return "winner"
-	case timeUp != r.TimeUp:
-		return "time_up"
 	case matchVer != r.MatchVer:
 		return "match_ver"
 	case !jsonEqual(teamA, r.TeamA):
