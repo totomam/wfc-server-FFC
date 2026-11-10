@@ -144,6 +144,11 @@ func CloseConnection(index uint64) {
 		session.LoggedIn = false
 		delete(sessions, session.User.ProfileId)
 	}
+
+	// Free the connection index for every connection, logged in or not
+	if sessionsByConnIndex[index] == session {
+		delete(sessionsByConnIndex, index)
+	}
 }
 
 func NewConnection(index uint64, address string) {
