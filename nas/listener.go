@@ -13,6 +13,20 @@ import (
 	"github.com/logrusorgru/aurora/v3"
 )
 
+// maxNASLineBytes bounds one HTTP request or header line read by filterDuplicateHost (NET-16).
+const maxNASLineBytes = 8192
+
+var errNASLineTooLong = errors.New("nas: request line too long")
+
+// readNASLine reads one line of at most the reader's buffer size (ReadSlice never grows the buffer).
+func readNASLine(r *bufio.Reader) (string, error) {
+	line, err := r.ReadSlice('\n')
+	if errors.Is(err, bufio.ErrBufferFull) {
+		return "", errNASLineTooLong
+	}
+	return string(line), err
+}
+
 type httpListener struct {
 	net.Listener
 }
@@ -40,7 +54,7 @@ func (l *httpListener) Accept() (net.Conn, error) {
 
 	pr, pw := io.Pipe()
 	go func() {
-		r := bufio.NewReader(conn)
+		r := bufio.NewReaderSize(conn, maxNASLineBytes)
 		if err := filterDuplicateHost(pw, r); err != nil {
 			_ = pw.CloseWithError(err)
 			return
@@ -87,7 +101,7 @@ func (l *tlsListener) Accept() (net.Conn, error) {
 
 	pr, pw := io.Pipe()
 	go func() {
-		r := bufio.NewReader(&tlsConn)
+		r := bufio.NewReaderSize(&tlsConn, maxNASLineBytes)
 		if err := filterDuplicateHost(pw, r); err != nil {
 			_ = pw.CloseWithError(err)
 			return
@@ -120,9 +134,14 @@ func listenAndServeTLS() {
 
 // filterDuplicateHost wraps a net.Conn and filters out duplicate Host headers from the HTTP request,
 // making the invalid requests sent by DWC acceptable to the standard library's HTTP server.
+// Every line is bounded by the reader's buffer (maxNASLineBytes): a longer line closes the connection
+// instead of being buffered (NET-16).
 func filterDuplicateHost(w *io.PipeWriter, r *bufio.Reader) error {
 	// Read the first line of the HTTP request
-	line, err := r.ReadString('\n')
+	line, err := readNASLine(r)
+	if errors.Is(err, errNASLineTooLong) {
+		return err
+	}
 	_, errPipe := w.Write([]byte(line))
 	if err != nil || errPipe != nil {
 		return errPipe
@@ -136,7 +155,10 @@ func filterDuplicateHost(w *io.PipeWriter, r *bufio.Reader) error {
 	// Iterate through the HTTP headers and remove any duplicate Host headers
 	hostSeen := false
 	for errPipe == nil {
-		line, err = r.ReadString('\n')
+		line, err = readNASLine(r)
+		if errors.Is(err, errNASLineTooLong) {
+			return err
+		}
 		if err != nil || line == "\r\n" || line == "\n" {
 			_, errPipe = w.Write([]byte(line))
 			break

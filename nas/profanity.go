@@ -7,13 +7,25 @@ import (
 	"net/http"
 	"os"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"time"
 	"wwfc/common"
+	"wwfc/logging"
 )
 
 var profanityFilePath = "./profanity.txt"
-var profanityFileLines []string = nil
+
+// profanityWords holds the lower-cased lines of profanity.txt (a set, NET-16); swapped atomically on reload.
+var profanityWords atomic.Pointer[map[string]struct{}]
+var profanityMutex sync.Mutex
 var lastModTime time.Time
+
+// Caps for one /pr request (NET-16). DWC checks a handful of short names per call.
+const (
+	maxProfanityWordsBytes = 4096
+	maxProfanityWordsCount = 64
+)
 
 var symbolEquivalences = map[rune]rune{
 	'1': 'i',
@@ -28,12 +40,15 @@ var symbolEquivalences = map[rune]rune{
 }
 
 func CacheProfanityFile() error {
+	profanityMutex.Lock()
+	defer profanityMutex.Unlock()
+
 	fileInfo, err := os.Stat(profanityFilePath)
 	if err != nil {
 		return err
 	}
 
-	if !fileInfo.ModTime().After(lastModTime) && profanityFileLines != nil {
+	if !fileInfo.ModTime().After(lastModTime) && profanityWords.Load() != nil {
 		return nil
 	}
 
@@ -45,7 +60,7 @@ func CacheProfanityFile() error {
 		common.ShouldNotError(file.Close())
 	}()
 
-	profanityFileLines = nil
+	words := map[string]struct{}{}
 	scanner := bufio.NewScanner(file)
 	for scanner.Scan() {
 		line := scanner.Text()
@@ -54,13 +69,15 @@ func CacheProfanityFile() error {
 			continue
 		}
 
-		profanityFileLines = append(profanityFileLines, line)
+		words[strings.ToLower(line)] = struct{}{}
 	}
 
-	if profanityFileLines == nil {
+	if len(words) == 0 {
+		profanityWords.Store(nil)
 		return errors.New("the file '" + profanityFilePath + "' is empty")
 	}
 
+	profanityWords.Store(&words)
 	lastModTime = fileInfo.ModTime()
 	return nil
 }
@@ -78,22 +95,31 @@ func normalizeWord(word string) string {
 }
 
 func IsBadWord(word string) (bool, error) {
+	words, err := loadProfanityWords()
+	if err != nil {
+		return false, err
+	}
+	return isBadWordIn(words, word), nil
+}
+
+// loadProfanityWords returns the cached word set, reloading profanity.txt if it changed (one stat per call).
+func loadProfanityWords() (map[string]struct{}, error) {
 	if !isProfanityFileCached() {
 		err := CacheProfanityFile()
 		if err != nil {
-			return false, errors.New("the file '" + profanityFilePath + "' has not been cached")
-		}
-
-	}
-
-	normalizedWord := normalizeWord(word)
-	for _, line := range profanityFileLines {
-		if strings.EqualFold(line, normalizedWord) {
-			return true, nil
+			return nil, errors.New("the file '" + profanityFilePath + "' has not been cached")
 		}
 	}
+	words := profanityWords.Load()
+	if words == nil {
+		return nil, errors.New("the file '" + profanityFilePath + "' has not been cached")
+	}
+	return *words, nil
+}
 
-	return false, nil
+func isBadWordIn(words map[string]struct{}, word string) bool {
+	_, bad := words[strings.ToLower(normalizeWord(word))]
+	return bad
 }
 
 func isProfanityFileCached() bool {
@@ -101,7 +127,9 @@ func isProfanityFileCached() bool {
 	if err != nil {
 		return false
 	}
-	return profanityFileLines != nil && !fileInfo.ModTime().After(lastModTime)
+	profanityMutex.Lock()
+	defer profanityMutex.Unlock()
+	return profanityWords.Load() != nil && !fileInfo.ModTime().After(lastModTime)
 }
 
 func handleAuthProfanityEndpoint(w http.ResponseWriter, r *http.Request) {
@@ -160,14 +188,22 @@ func handleAuthProfanityEndpoint(w http.ResponseWriter, r *http.Request) {
 
 	// TODO - Handle wtype? Unsure what this field does, seems to always be an empty string
 
-	prwords := ""
+	if len(words) > maxProfanityWordsBytes || strings.Count(words, "\t") >= maxProfanityWordsCount {
+		logging.Warn(getModuleName(r), "Profanity check too large:", len(words), "bytes")
+		replyHTTPError(w, 400, "400 Bad Request")
+		return
+	}
+
+	badWords, _ := loadProfanityWords()
+	var prwordsBuilder strings.Builder
 	for _, word := range strings.Split(words, "\t") {
-		if isBadWord, _ := IsBadWord(word); isBadWord {
-			prwords += "1"
+		if isBadWordIn(badWords, word) {
+			prwordsBuilder.WriteByte('1')
 		} else {
-			prwords += "0"
+			prwordsBuilder.WriteByte('0')
 		}
 	}
+	prwords := prwordsBuilder.String()
 
 	returncd := ""
 	if strings.Contains(prwords, "1") {

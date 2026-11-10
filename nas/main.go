@@ -35,6 +35,9 @@ var (
 	raceMux      = http.NewServeMux()
 )
 
+// maxAuthBodyBytes caps a request body to the nas./naswii. host (account, profanity, payload forms).
+const maxAuthBodyBytes = 64 << 10
+
 var hostMuxes = map[*regexp.Regexp]*http.ServeMux{
 	regexp.MustCompile(`^(nas|naswii)\.`):                         authMux,
 	regexp.MustCompile(`^dls1\.`):                                 dlsMux,
@@ -152,6 +155,10 @@ func handleRequest(w http.ResponseWriter, r *http.Request) {
 	// Check for host-specific muxes
 	for regex, mux := range hostMuxes {
 		if regex.MatchString(r.Host) {
+			if mux == authMux {
+				// nas./naswii. only take small DWC forms (NET-16)
+				r.Body = http.MaxBytesReader(w, r.Body, maxAuthBodyBytes)
+			}
 			mux.ServeHTTP(w, r)
 			return
 		}
