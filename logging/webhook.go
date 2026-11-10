@@ -52,7 +52,56 @@ func encodeWebhookValue(value any) string {
 	return "  - ``" + strings.ReplaceAll(fmt.Sprintf("%v", value), "``", "` `") + "``"
 }
 
+// webhookDropKeys never leave the server in a webhook (NET-22): exact IPs, device IDs and friend codes. The
+// database event log keeps them until the retention purge (wwfc purge).
+var webhookDropKeys = map[string]bool{
+	"ip_address": true, "ng_device_id": true, "wii_number": true, "Friend code": true, "friend_code": true,
+	"IP address": true,
+}
+
+// webhookSafe returns a copy of v without webhookDropKeys, at any depth (maps and slices of maps).
+func webhookSafe(v any) any {
+	switch t := v.(type) {
+	case map[string]any:
+		out := make(map[string]any, len(t))
+		for k, x := range t {
+			if !webhookDropKeys[k] {
+				out[k] = webhookSafe(x)
+			}
+		}
+		return out
+	case map[string]string:
+		out := make(map[string]string, len(t))
+		for k, x := range t {
+			if !webhookDropKeys[k] {
+				out[k] = x
+			}
+		}
+		return out
+	case []map[string]string:
+		out := make([]map[string]string, len(t))
+		for i, x := range t {
+			out[i] = webhookSafe(x).(map[string]string)
+		}
+		return out
+	case []map[string]any:
+		out := make([]map[string]any, len(t))
+		for i, x := range t {
+			out[i] = webhookSafe(x).(map[string]any)
+		}
+		return out
+	case []any:
+		out := make([]any, len(t))
+		for i, x := range t {
+			out[i] = webhookSafe(x)
+		}
+		return out
+	}
+	return v
+}
+
 func (w WebhookConfig) ReportEvent(eventType string, eventData map[string]any) {
+	eventData = webhookSafe(eventData).(map[string]any)
 	embed := webhookEmbed{
 		Title: "> **" + eventType + "**",
 	}

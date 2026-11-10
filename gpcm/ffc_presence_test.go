@@ -1,13 +1,32 @@
 package gpcm
 
 import (
+	"io"
+	"net/http"
+	"net/http/httptest"
+	"strings"
 	"sync"
 	"testing"
 	"time"
 
+	"wwfc/common"
 	"wwfc/database"
 	"wwfc/logging"
 )
+
+// webhookBody sends one event through the Discord webhook code to a local server and returns the posted JSON.
+func webhookBody(t *testing.T, ev string, data map[string]any) string {
+	t.Helper()
+	got := make(chan string, 1)
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		b, _ := io.ReadAll(r.Body)
+		got <- string(b)
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	defer srv.Close()
+	logging.WebhookConfig{Enabled: true, URL: srv.URL}.ReportEvent(ev, data)
+	return <-got
+}
 
 func TestPresenceEvents(t *testing.T) {
 	type ev struct {
@@ -52,11 +71,22 @@ func TestPresenceEvents(t *testing.T) {
 	if on["Player"] != "Hunter" || on["Friends online"] != "Rosie" || on["Players online"] != 3 {
 		t.Fatalf("online %v", on)
 	}
-	if on["Friend code"] == "" {
-		t.Fatalf("no friend code %v", on)
+	if _, ok := on["Friend code"]; ok {
+		t.Fatalf("friend code in presence event %v", on) // NET-22
 	}
 	if _, ok := on["ip_address"]; ok {
 		t.Fatal("ip leaked")
+	}
+	// NET-22: the webhook payload built from the event carries no friend code (and no IP even if one were added).
+	body := webhookBody(t, "player_online", on)
+	fc := common.CalcFriendCodeString(1, "VDEE")
+	if strings.Contains(body, fc) || strings.Contains(strings.ReplaceAll(body, "-", ""), strings.ReplaceAll(fc, "-", "")) ||
+		strings.Contains(body, "Friend code") || !strings.Contains(body, "Hunter") {
+		t.Fatalf("webhook payload %s", body)
+	}
+	leak := map[string]any{"Player": "Hunter", "Friend code": fc, "ip_address": "203.0.113.9:1234"}
+	if body = webhookBody(t, "player_online", leak); strings.Contains(body, fc) || strings.Contains(body, "203.0.113.9") {
+		t.Fatalf("webhook filter let through %s", body)
 	}
 	if off["Online for"] != "1h05m" || off["Players online"] != 2 {
 		t.Fatalf("offline %v", off)

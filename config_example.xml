@@ -90,6 +90,11 @@
       -->
      <apiSecret>CHANGE_ME_API_SECRET</apiSecret>
 
+     <!-- Personal-data retention in days (NET-22). `wwfc purge` (daily cron) clears IP addresses, device IDs,
+          friend codes, last in-game names and raw match reports older than this; 0 = never purge.
+          Default 90 (a policy choice: change it to what your privacy notice says). Backups keep the same data. -->
+     <personalDataRetentionDays>90</personalDataRetentionDays>
+
      <eventReporting>
           <!-- Enable to log events to the "events" table in the database -->
           <logToDatabase>true</logToDatabase>

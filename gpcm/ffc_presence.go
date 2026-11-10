@@ -14,7 +14,6 @@ import (
 	"sync"
 	"time"
 
-	"wwfc/common"
 	"wwfc/logging"
 )
 
@@ -69,17 +68,13 @@ func onlineCount(gameName string, skip uint32) int {
 }
 
 func presenceData(s *GameSpySession, online int, friends []string) map[string]any {
-	fc := ""
-	if len(s.User.GsbrCode) >= 4 {
-		fc = common.CalcFriendCodeString(s.User.ProfileId, s.User.GsbrCode[:4])
-	}
+	// No friend code (NET-22): this goes to Discord webhooks and the event log; the player name is enough.
 	f := "none"
 	if len(friends) > 0 {
 		f = strings.Join(friends, ", ")
 	}
 	return map[string]any{
 		"Player":         presenceName(s),
-		"Friend code":    fc,
 		"Friends online": f,
 		"Players online": online,
 		"Game":           s.GameName,

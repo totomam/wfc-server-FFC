@@ -132,7 +132,13 @@ WantedBy=multi-user.target
 UNIT
 systemctl daemon-reload && systemctl enable -q wwfc && systemctl restart wwfc
 
-# Nightly DB backup, 14 days kept
+# Nightly personal-data purge (NET-22): IPs, device IDs, friend codes, raw result reports older than
+# config.xml personalDataRetentionDays (default 90) are cleared. Runs before the backup.
+cat > /etc/cron.d/wwfc-purge <<CRON
+30 3 * * * wwfc cd $DIR && ./wwfc purge >/dev/null
+CRON
+
+# Nightly DB backup, 14 days kept (backups hold the same personal data: keep them shorter than the retention period)
 printf '127.0.0.1:5432:wwfc:wwfc:%s\n' "$DBPW" > /root/.pgpass && chmod 600 /root/.pgpass
 cat > /etc/cron.d/wwfc-backup <<CRON
 0 4 * * * root pg_dump -h 127.0.0.1 -U wwfc wwfc | gzip > /var/backups/wwfc-\$(date +\%F).sql.gz; find /var/backups -name 'wwfc-*.sql.gz' -mtime +14 -delete

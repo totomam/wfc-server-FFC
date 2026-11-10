@@ -16,7 +16,8 @@ func (c *Connection) UpdateTables() {
 		ADD IF NOT EXISTS ban_moderator character varying,
 		ADD IF NOT EXISTS ban_tos boolean,
 		ADD IF NOT EXISTS open_host boolean DEFAULT false,
-		ADD IF NOT EXISTS allow_default_keys boolean DEFAULT false;
+		ADD IF NOT EXISTS allow_default_keys boolean DEFAULT false,
+		ADD IF NOT EXISTS last_ip_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP;
 	`)
 
 	_, _ = c.pool.Exec(c.ctx, `

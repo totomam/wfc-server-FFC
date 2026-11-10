@@ -10,6 +10,10 @@ Branch `ffc` = upstream `main` + two FFC patches:
 Admin API (`/api/ffc/admin/*`, `/api/ban` ...): GET sends the apiSecret in header `X-API-Secret` (no `?secret=`),
 POST in that header or the JSON `"secret"`; 10 failed auths/min per IP -> 429. Keep it behind an SSH tunnel.
 
+Personal data (NET-22): `wwfc purge [days]` (daily cron from deploy/vultr_setup.sh) clears IPs, device IDs, friend
+codes, last in-game names and raw match reports older than `personalDataRetentionDays` (config.xml, default 90);
+webhooks never carry IPs, device IDs or friend codes (logging/webhook.go).
+
 Tests: `go test ./...`; game-side conformance test and docs live in the FFC decomp repo (`docs/online/`).
 Plan, hosting needs and open items (DS HTTPS certificate): FFC decomp `docs/online/BACKUP_WIILINK.md`.
 Never commit keys or certificates to this repo.

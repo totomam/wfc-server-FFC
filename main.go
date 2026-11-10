@@ -2,6 +2,7 @@ package main
 
 import (
 	"errors"
+	"fmt"
 	"io"
 	"net"
 	"net/rpc"
@@ -56,12 +57,47 @@ func main() {
 		}
 	}
 
+	// "purge [days]": clear personal data older than the retention period and exit (NET-22; run daily by cron).
+	if len(args) > 0 && args[0] == "purge" {
+		os.Exit(purgeMain(args[1:]))
+	}
+
 	// Start the backend instead of the frontend if the first argument is "backend"
 	if len(args) > 0 && args[0] == "backend" {
 		backendMain(noSignal, noReload)
 	} else {
 		frontendMain(noSignal, len(args) > 0 && args[0] == "frontend")
 	}
+}
+
+func purgeMain(args []string) int {
+	days := *config.PersonalDataRetentionDays
+	if len(args) > 0 {
+		n, err := strconv.Atoi(args[0])
+		if err != nil {
+			fmt.Fprintln(os.Stderr, "usage: wwfc purge [days]")
+			return 2
+		}
+		days = n
+	}
+	if days <= 0 {
+		fmt.Println("purge: personalDataRetentionDays <= 0, purge disabled")
+		return 0
+	}
+	db := database.Start(config)
+	defer db.Close()
+	db.UpdateTables() // last_ip_at must exist even if the server has not started since the upgrade
+	if err := db.CreateMatchResultsTable(); err != nil {
+		fmt.Fprintln(os.Stderr, "purge:", err)
+		return 1
+	}
+	r, err := db.PurgePersonalData(days)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "purge:", err)
+		return 1
+	}
+	fmt.Printf("purge: older than %d days: match_results %d, users %d, events %d rows cleared\n", days, r.MatchResults, r.Users, r.Events)
+	return 0
 }
 
 type RPCPacket struct {

@@ -53,7 +53,15 @@ type Config struct {
 	ServerName string `xml:"serverName,omitempty"`
 
 	EventReporting EventReportingConfig `xml:"eventReporting"`
+
+	// PersonalDataRetentionDays (NET-22): `wwfc purge` clears IPs, device IDs, friend codes and raw result reports
+	// older than this. Absent = DefaultRetentionDays; 0 or less = purge disabled.
+	PersonalDataRetentionDays *int `xml:"personalDataRetentionDays"`
 }
+
+// DefaultRetentionDays is the personal-data retention period when config.xml sets none (NET-22; policy, see
+// ffc-decomp docs/sessions/fix03/NET-22.md).
+const DefaultRetentionDays = 90
 
 type EventReportingConfig struct {
 	LogToDatabase bool                    `xml:"logToDatabase"`
@@ -122,6 +130,11 @@ func GetConfig() Config {
 	if config.LogLevel == nil {
 		level := 4
 		config.LogLevel = &level
+	}
+
+	if config.PersonalDataRetentionDays == nil {
+		days := DefaultRetentionDays
+		config.PersonalDataRetentionDays = &days
 	}
 
 	if config.LogOutput == "" {
