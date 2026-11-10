@@ -41,6 +41,7 @@ type GameSpySession struct {
 
 	StatusSet      bool
 	Status         string
+	StatString     string
 	LocString      string
 	FriendList     []uint32
 	AuthFriendList []uint32

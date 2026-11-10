@@ -212,8 +212,6 @@ func (g *GameSpySession) setStatus(command common.GameSpyCommand) {
 	status := command.CommandValue
 	logging.Notice(g.ModuleName, "New status:", aurora.BrightMagenta(status))
 
-	qr2.ProcessGPStatusUpdate(g.User.ProfileId, g.QR2IP, status)
-
 	statstring, ok := command.OtherValues["statstring"]
 	if !ok {
 		logging.Warn(g.ModuleName, "Missing statstring")
@@ -226,6 +224,14 @@ func (g *GameSpySession) setStatus(command common.GameSpyCommand) {
 		locstring = ""
 	}
 
+	// Fossil Fighters: Champions overflows small stack buffers on long status values (FFC NET-39)
+	if g.GameName == ffcGameName && !ffcStatusValid(statstring, locstring) {
+		logging.Warn(g.ModuleName, "Rejected status with over-long statstring/locstring:", aurora.Cyan(statstring), aurora.Cyan(locstring))
+		return
+	}
+
+	qr2.ProcessGPStatusUpdate(g.User.ProfileId, g.QR2IP, status)
+
 	statusMsg := "|s|" + status + "|ss|" + statstring + "|ls|" + locstring + "|ip|0|p|0|qm|0"
 
 	mutex.Lock()
@@ -236,6 +242,7 @@ func (g *GameSpySession) setStatus(command common.GameSpyCommand) {
 		kickPlayer(g.User.ProfileId, "restricted_join")
 	}
 
+	g.StatString = statstring
 	g.LocString = locstring
 	g.Status = statusMsg
 
@@ -300,6 +307,11 @@ func (g *GameSpySession) sendFriendStatus(profileId uint32) {
 			return
 		}
 
+		if !ffcRelayAllowed(session, g) {
+			logging.Warn("GPCM", "Blocked status from", aurora.Cyan(g.User.ProfileId), "to", aurora.Cyan(session.User.ProfileId), "(over-long dental2ds status)")
+			return
+		}
+
 		session.recordStatusSent(g.User.ProfileId)
 		sendMessageToSession("100", g.User.ProfileId, session, g.Status)
 	}
@@ -313,13 +325,19 @@ func (g *GameSpySession) exchangeFriendStatus(profileId uint32) {
 				return
 			}
 
-			session.recordStatusSent(g.User.ProfileId)
-			sendMessageToSession("100", g.User.ProfileId, session, g.Status)
+			if ffcRelayAllowed(session, g) {
+				session.recordStatusSent(g.User.ProfileId)
+				sendMessageToSession("100", g.User.ProfileId, session, g.Status)
+			}
 		}
 
 		if g.isFriendAdded(profileId) && g.isFriendAuthorized(profileId) {
 			if g.NeedsExploit && strings.HasPrefix(g.GameCode, "RMC") && len(session.LocString) > 0x14 {
 				logging.Warn("GPCM", "Blocked message from", aurora.Cyan(session.User.ProfileId), "to", aurora.Cyan(g.User.ProfileId), "due to a stack overflow exploit")
+				return
+			}
+
+			if !ffcRelayAllowed(g, session) {
 				return
 			}
 
