@@ -99,20 +99,24 @@ func SendClientMessage(senderIP string, destSearchID uint64, message []byte) {
 		qr2IP := binary.BigEndian.Uint32(message[0x0C:0x10])
 		qr2Port := binary.LittleEndian.Uint16(message[0x0A:0x0C])
 
+		// setProfileID expects the global mutex to be held (its invalid-rating
+		// branch unlocks and re-locks it around the GP error callback)
 		mutex.Lock()
 		sender = sessions[(uint64(qr2Port)<<32)|uint64(qr2IP)]
-		mutex.Unlock()
 		if sender == nil || !sender.Authenticated {
+			mutex.Unlock()
 			logging.Error(moduleName, "Session does not exist with QR2 IP and port")
 			return
 		}
 
 		if !sender.setProfileID(moduleName, strconv.FormatUint(uint64(senderProfileID), 10), strings.Split(senderIP, ":")[0]) {
+			mutex.Unlock()
 			// Error already logged
 			return
 		}
 
 		login := sender.login
+		mutex.Unlock()
 		if login == nil || !login.DeviceAuthenticated {
 			logging.Error(moduleName, "Sender is not device authenticated")
 			return
