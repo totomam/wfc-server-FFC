@@ -2,6 +2,7 @@ package qr2
 
 import (
 	"encoding/gob"
+	"maps"
 	"math/rand"
 	"net"
 	"os"
@@ -286,7 +287,9 @@ func GetSessionServers() []map[string]string {
 			continue
 		}
 
-		servers = append(servers, session.Data)
+		// Copy under the mutex: callers iterate the result after it is released
+		// while heartbeats and SetDeviceAuthenticated keep writing session.Data
+		servers = append(servers, maps.Clone(session.Data))
 	}
 
 	// Remove unreachable sessions
