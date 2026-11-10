@@ -1,11 +1,12 @@
 #!/bin/bash
 # One-shot FFC WFC server setup for a fresh Ubuntu 24.04 VPS (Vultr etc.). Run as root:
-#   curl -fsSL https://raw.githubusercontent.com/totomam/wfc-server-FFC/ffc/deploy/vultr_setup.sh | bash
+#   curl -fsSL https://raw.githubusercontent.com/totomam/wfc-server-FFC/claude/ffc-fix03-y29slm/deploy/vultr_setup.sh | bash
 # Phase 1 (no DS certs): HTTP only, port 443 stays closed. Certs: docs/online/HOSTING.md §6a in ffc-decomp.
 set -euo pipefail
 [ "$(id -u)" = 0 ] || { echo "run as root"; exit 1; }
 
-COMMIT=${COMMIT:-FETCH_HEAD}   # default: head of ffc (s94: package endpoint + Bonus Data)
+BRANCH=${BRANCH:-claude/ffc-fix03-y29slm}   # release branch (FFC-DECOMP NET-17/18)
+COMMIT=${COMMIT:-FETCH_HEAD}   # default: head of the release branch $BRANCH
 GO_VER=1.25.0
 DIR=/opt/wfc
 LOCAL_IP=$(ip -4 route get 1.1.1.1 | awk '{for(i=1;i<=NF;i++) if($i=="src") print $(i+1)}')
@@ -40,8 +41,8 @@ sudo -u postgres psql -tAc "SELECT 1 FROM pg_database WHERE datname='wwfc'" | gr
   || sudo -u postgres createdb -O wwfc wwfc
 
 # Build
-[ -d $DIR/.git ] || git clone -b ffc https://github.com/totomam/wfc-server-FFC $DIR
-git -C $DIR fetch -q origin ffc && git -C $DIR checkout -q "$COMMIT"
+[ -d $DIR/.git ] || git clone -b "$BRANCH" https://github.com/totomam/wfc-server-FFC $DIR
+git -C $DIR fetch -q origin "$BRANCH" && git -C $DIR checkout -q "$COMMIT"
 (cd $DIR && go build -o wwfc .)
 PGPASSWORD=$DBPW psql -q -h 127.0.0.1 -U wwfc -d wwfc -f $DIR/schema.sql || true  # re-run safe-ish
 

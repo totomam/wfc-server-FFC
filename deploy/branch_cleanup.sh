@@ -1,9 +1,10 @@
 #!/bin/bash
 # Branch cleanup (human s94-online, 2026-11-06; CLAUDE.md clean-branch rule). Run by .github/workflows/branch-cleanup.yml
 # (workflow_dispatch; session containers cannot delete refs). Arg 2 = dir with merged.txt / archive.txt ("<branch> <sha>").
-#  merged.txt : branch fully in ffc -> delete.   archive.txt : has commits not in ffc -> tag archive/<b>, verify, delete.
+#  merged.txt : branch fully in $REL -> delete.   archive.txt : has commits not in $REL -> tag archive/<b>, verify, delete.
 # A branch whose head moved since it was listed (someone is using it) is skipped. Arg 1: "true" = dry run.
 set -uo pipefail
+REL=${REL:-claude/ffc-fix03-y29slm}   # release branch (FFC-DECOMP NET-17/18)
 DRY=${1:-true}
 cd "${2:?list dir}"
 git fetch -q --prune origin '+refs/heads/*:refs/remotes/origin/*' '+refs/tags/*:refs/tags/*'
@@ -12,7 +13,7 @@ while read -r b sha; do
   [[ -z "$b" || "$b" == \#* ]] && continue
   cur=$(git rev-parse -q --verify "refs/remotes/origin/$b") || { echo "gone   $b"; continue; }
   [ "$cur" = "$sha" ] || { echo "MOVED  $b (skip)"; skip=$((skip+1)); continue; }
-  if [ "$(git rev-list --count origin/ffc.."$cur")" = 0 ]; then del+=("$b"); else echo "AHEAD  $b -> archive"; tags+=("$b"); fi
+  if [ "$(git rev-list --count origin/$REL.."$cur")" = 0 ]; then del+=("$b"); else echo "AHEAD  $b -> archive"; tags+=("$b"); fi
 done < merged.txt
 while read -r b sha; do
   [[ -z "$b" || "$b" == \#* ]] && continue
