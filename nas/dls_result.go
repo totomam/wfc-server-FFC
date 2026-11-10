@@ -193,6 +193,10 @@ func dlsResult(moduleName string, fields map[string][]byte) []byte {
 	m := r.toMatchReport(raw)
 	m.Queue = matchQueueOf(m.PidA, m.PidB)
 	res, err := resultDB.StoreMatchReportDetail(m)
+	if errors.Is(err, database.ErrPairCap) { // NET-11: one pair cannot post rows forever
+		logging.Warn(moduleName, "result: pair", aurora.Cyan(m.PidA), aurora.Cyan(m.PidB), "over", database.MatchPairCapPerHour, "rows/hour")
+		return []byte("err cap")
+	}
 	if err != nil {
 		logging.Error(moduleName, "result: store:", err)
 		return []byte("err store")

@@ -1,6 +1,7 @@
 package nas
 
 import (
+	"context"
 	"encoding/binary"
 	"hash/crc32"
 	"os"
@@ -8,7 +9,21 @@ import (
 	"time"
 	"wwfc/common"
 	"wwfc/database"
+
+	"github.com/jackc/pgx/v4"
 )
+
+// clearGoldenPair deletes the golden pair's rows, so reruns stay under database.MatchPairCapPerHour (NET-11).
+func clearGoldenPair(t *testing.T) {
+	c, err := pgx.Connect(context.Background(), "postgres://wwfc:CHANGEME@127.0.0.1/wwfc")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer c.Close(context.Background())
+	if _, err := c.Exec(context.Background(), `DELETE FROM match_results WHERE pid_a = 1000000101 AND pid_b = 1000000202`); err != nil {
+		t.Fatal(err)
+	}
+}
 
 // Live Postgres check (skipped unless FFC_TEST_PG=1; local db wwfc/CHANGEME@127.0.0.1, schema.sql loaded): the two
 // consoles' reports of one match end in ONE row, status confirmed; a contradicting pair is flagged mismatch.
@@ -21,6 +36,7 @@ func TestResultPostgresPair(t *testing.T) {
 	if err := db.CreateMatchResultsTable(); err != nil {
 		t.Fatal(err)
 	}
+	clearGoldenPair(t)
 	old := resultDB
 	resultDB = &db
 	defer func() { resultDB = old }()
@@ -60,6 +76,7 @@ func TestResultPostgresQueue(t *testing.T) {
 	if err := db.CreateMatchResultsTable(); err != nil {
 		t.Fatal(err)
 	}
+	clearGoldenPair(t)
 	oldDB, oldQ := resultDB, matchQueueOf
 	resultDB = &db
 	defer func() { resultDB, matchQueueOf = oldDB, oldQ }()

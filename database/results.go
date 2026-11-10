@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
+	"fmt"
 
 	"github.com/jackc/pgx/v4"
 )
@@ -37,21 +38,28 @@ const (
 );
 CREATE INDEX IF NOT EXISTS match_results_pair_idx ON public.match_results (pid_a, pid_b, created_at);
 -- s99 #35: tables made before the queue column
-ALTER TABLE public.match_results ADD COLUMN IF NOT EXISTS queue character varying NOT NULL DEFAULT ''`
+ALTER TABLE public.match_results ADD COLUMN IF NOT EXISTS queue character varying NOT NULL DEFAULT '';
+-- NET-11: the one open (waiting for the other console) row of a pair; the partial unique index makes pairing atomic.
+ALTER TABLE public.match_results ADD COLUMN IF NOT EXISTS pair_open boolean NOT NULL DEFAULT false;
+CREATE UNIQUE INDEX IF NOT EXISTS match_results_open_pair_idx ON public.match_results (pid_a, pid_b) WHERE pair_open`
 
 	queryUserOwnsProfile = `SELECT EXISTS(SELECT 1 FROM users WHERE profile_id = $1 AND user_id = $2)`
 	queryProfileExists   = `SELECT EXISTS(SELECT 1 FROM users WHERE profile_id = $1)`
 
-	// The other side's open row of the same pair, at most matchPairWindow old, still missing this reporter's column.
-	queryFindOpenMatch = `SELECT id, winner_pid, draw, time_up, match_ver, team_a, team_b FROM match_results
-WHERE pid_a = $1 AND pid_b = $2 AND created_at > CURRENT_TIMESTAMP - interval '10 minutes'
-  AND status = 'single' AND (CASE WHEN $3 THEN report_a IS NULL ELSE report_b IS NULL END)
-ORDER BY created_at DESC LIMIT 1 FOR UPDATE`
+	// NET-11: a pair has at most one open row (pair_open, unique). It closes when the other side's report completes it
+	// or once it is matchPairWindow old (closed by the next report of the pair; the row stays "single").
+	queryCloseStaleOpen = `UPDATE match_results SET pair_open = false
+WHERE pid_a = $1 AND pid_b = $2 AND pair_open AND created_at <= CURRENT_TIMESTAMP - interval '10 minutes'`
+	queryFindOpenMatch = `SELECT id, winner_pid, draw, time_up, match_ver, team_a, team_b, report_a IS NOT NULL, report_b IS NOT NULL
+FROM match_results WHERE pid_a = $1 AND pid_b = $2 AND pair_open FOR UPDATE`
+	queryCountPairRows = `SELECT count(*) FROM match_results WHERE pid_a = $1 AND pid_b = $2
+AND created_at > CURRENT_TIMESTAMP - interval '1 hour'`
 	queryInsertMatch = `INSERT INTO match_results (pid_a, pid_b, winner_pid, draw, time_up, modded, match_ver, name_a, name_b,
-team_a, team_b, report_a, report_b, status, queue) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, 'single', $14) RETURNING id`
+team_a, team_b, report_a, report_b, status, queue, pair_open) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, 'single', $14, true)
+ON CONFLICT (pid_a, pid_b) WHERE pair_open DO NOTHING RETURNING id`
 	queryCompleteMatch = `UPDATE match_results SET report_a = COALESCE(report_a, $2), report_b = COALESCE(report_b, $3),
 status = $4, mismatch = $5, queue = CASE WHEN queue = '' THEN $6 ELSE queue END, time_up = time_up AND $7,
-updated_at = CURRENT_TIMESTAMP WHERE id = $1`
+pair_open = false, updated_at = CURRENT_TIMESTAMP WHERE id = $1`
 )
 
 // MatchReport is one console's validated report, already normalised to the pair order (A = lower profile id).
@@ -110,56 +118,91 @@ func (c *Connection) StoreMatchReport(r MatchReport) (int64, string, error) {
 	return res.ID, res.Status, err
 }
 
+// MatchPairCapPerHour (NET-11): at most this many rows per pair (pid_a, pid_b) per rolling hour; past it a report
+// that would open a new row is refused with ErrPairCap (completing the open row is always allowed).
+const MatchPairCapPerHour = 30
+
+var ErrPairCap = errors.New("match_results: too many rows for this pair in the last hour")
+
 // StoreMatchReportDetail is StoreMatchReport plus the mismatch field (for the #28 alert).
+// NET-11: pairing is atomic. The insert of a new open row conflicts with the pair's open row (partial unique index),
+// so two simultaneous reports of one match end in one row: the loser of the insert race completes the winner's row.
+// A repeated report from the side that already reported adds no row (the open row is returned unchanged).
 func (c *Connection) StoreMatchReportDetail(r MatchReport) (StoreResult, error) {
+	for attempt := 0; attempt < 3; attempt++ {
+		res, retry, err := c.storeMatchReportOnce(r)
+		if !retry {
+			return res, err
+		}
+	}
+	return StoreResult{}, fmt.Errorf("match_results: pair %d-%d: open row kept changing", r.PidA, r.PidB)
+}
+
+// storeMatchReportOnce: retry = the open row the insert conflicted with was closed before it could be read.
+func (c *Connection) storeMatchReportOnce(r MatchReport) (StoreResult, bool, error) {
 	tx, err := c.pool.Begin(c.ctx)
 	if err != nil {
-		return StoreResult{}, err
+		return StoreResult{}, false, err
 	}
 	defer func() { _ = tx.Rollback(c.ctx) }()
 
 	var (
-		id        int64
-		winner    *int64
-		draw      bool
-		timeUp    bool
-		matchVer  int64
-		teamA     []byte
-		teamB     []byte
-		repA      []byte
-		repB      []byte
-		status    = "single"
-		mismatch  string
-		reportCol = r.Raw
+		id           int64
+		winner       *int64
+		draw         bool
+		timeUp       bool
+		matchVer     int64
+		teamA, teamB []byte
+		hasA, hasB   bool
+		repA, repB   []byte
 	)
 	if r.ReporterIsA {
-		repA = reportCol
+		repA = r.Raw
 	} else {
-		repB = reportCol
+		repB = r.Raw
 	}
-
-	err = tx.QueryRow(c.ctx, queryFindOpenMatch, int64(r.PidA), int64(r.PidB), r.ReporterIsA).
-		Scan(&id, &winner, &draw, &timeUp, &matchVer, &teamA, &teamB)
-	switch {
-	case errors.Is(err, pgx.ErrNoRows):
-		err = tx.QueryRow(c.ctx, queryInsertMatch, int64(r.PidA), int64(r.PidB), nullPid(r.WinnerPid), r.Draw, r.TimeUp,
-			r.Modded, int64(r.MatchVer), r.NameA, r.NameB, []byte(r.TeamA), []byte(r.TeamB), repA, repB, r.Queue).Scan(&id)
-		if err != nil {
-			return StoreResult{}, err
+	pa, pb := int64(r.PidA), int64(r.PidB)
+	if _, err = tx.Exec(c.ctx, queryCloseStaleOpen, pa, pb); err != nil {
+		return StoreResult{}, false, err
+	}
+	err = tx.QueryRow(c.ctx, queryFindOpenMatch, pa, pb).Scan(&id, &winner, &draw, &timeUp, &matchVer, &teamA, &teamB, &hasA, &hasB)
+	if errors.Is(err, pgx.ErrNoRows) {
+		var n int
+		if err = tx.QueryRow(c.ctx, queryCountPairRows, pa, pb).Scan(&n); err != nil {
+			return StoreResult{}, false, err
 		}
-	case err != nil:
-		return StoreResult{}, err
-	default:
-		mismatch = CompareMatch(r, winner, draw, timeUp, uint32(matchVer), teamA, teamB)
-		status = "confirmed"
-		if mismatch != "" {
-			status = "mismatch"
+		if n >= MatchPairCapPerHour {
+			return StoreResult{}, false, ErrPairCap
 		}
-		if _, err = tx.Exec(c.ctx, queryCompleteMatch, id, repA, repB, status, mismatch, r.Queue, r.TimeUp); err != nil {
-			return StoreResult{}, err
+		err = tx.QueryRow(c.ctx, queryInsertMatch, pa, pb, nullPid(r.WinnerPid), r.Draw, r.TimeUp, r.Modded, int64(r.MatchVer),
+			r.NameA, r.NameB, []byte(r.TeamA), []byte(r.TeamB), repA, repB, r.Queue).Scan(&id)
+		if err == nil {
+			return StoreResult{ID: id, Status: "single"}, false, tx.Commit(c.ctx)
+		}
+		if !errors.Is(err, pgx.ErrNoRows) {
+			return StoreResult{}, false, err
+		}
+		// Lost the insert race: the other console's row committed meanwhile (READ COMMITTED: a new statement sees it).
+		err = tx.QueryRow(c.ctx, queryFindOpenMatch, pa, pb).Scan(&id, &winner, &draw, &timeUp, &matchVer, &teamA, &teamB, &hasA, &hasB)
+		if errors.Is(err, pgx.ErrNoRows) {
+			return StoreResult{}, true, nil
 		}
 	}
-	return StoreResult{ID: id, Status: status, Mismatch: mismatch}, tx.Commit(c.ctx)
+	if err != nil {
+		return StoreResult{}, false, err
+	}
+	if (r.ReporterIsA && hasA) || (!r.ReporterIsA && hasB) {
+		return StoreResult{ID: id, Status: "single"}, false, nil // repeat from the side that already reported: no new row
+	}
+	mismatch := CompareMatch(r, winner, draw, timeUp, uint32(matchVer), teamA, teamB)
+	status := "confirmed"
+	if mismatch != "" {
+		status = "mismatch"
+	}
+	if _, err = tx.Exec(c.ctx, queryCompleteMatch, id, repA, repB, status, mismatch, r.Queue, r.TimeUp); err != nil {
+		return StoreResult{}, false, err
+	}
+	return StoreResult{ID: id, Status: status, Mismatch: mismatch}, false, tx.Commit(c.ctx)
 }
 
 // CompareMatch returns "" when the second report agrees with the stored row, else the first differing field.
