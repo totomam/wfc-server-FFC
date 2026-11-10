@@ -148,7 +148,7 @@ func makeAuthInfo(query url.Values) AuthInfo {
 }
 
 func authenticate(authInfo AuthInfo, requiredRole Role) bool {
-	return requiredRole == RoleNone || authInfo.Secret == apiSecret
+	return requiredRole == RoleNone || (apiSecret != "" && authInfo.Secret == apiSecret)
 }
 
 func replyError(w http.ResponseWriter, statusCode int, errMsg APIErrorString) {
