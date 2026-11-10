@@ -6,6 +6,8 @@
 package ffclimit
 
 import (
+	"container/list"
+	"hash/fnv"
 	"net"
 	"strings"
 	"sync"
@@ -37,17 +39,44 @@ var (
 	maxKeys     = 50000
 )
 
+// idleExpiry: a bucket not used for this long is full again anyway, so it is dropped.
+const idleExpiry = 5 * time.Minute
+
+const shardCount = 64
+
 type bucket struct {
+	key    string
 	tokens float64
 	last   time.Time
 	logged time.Time
+	elem   *list.Element
+}
+
+// shard: one lock, one map and one list ordered by last use (front = oldest), so expiry and eviction are O(1)
+// per call instead of a full-map scan under one global lock (NET-09).
+type shard struct {
+	mu      sync.Mutex
+	buckets map[string]*bucket
+	lru     list.List
 }
 
 var (
-	mu      sync.Mutex
-	buckets = map[string]*bucket{}
-	counts  = map[string]uint64{}
+	shards   [shardCount]shard
+	countsMu sync.Mutex
+	counts   = map[string]uint64{}
 )
+
+func init() {
+	for i := range shards {
+		shards[i].buckets = map[string]*bucket{}
+	}
+}
+
+func shardOf(key string) *shard {
+	h := fnv.New32a()
+	_, _ = h.Write([]byte(key))
+	return &shards[h.Sum32()%shardCount]
+}
 
 // IPOf strips the port from "ip:port" (IPv4 or [IPv6]:port); other strings are returned unchanged.
 func IPOf(addr string) string {
@@ -64,45 +93,76 @@ func Allow(r Rule, ip string) bool {
 	}
 	now := Now()
 	key := r.Name + "|" + ip
-	mu.Lock()
-	b, ok := buckets[key]
+	sh := shardOf(key)
+	sh.mu.Lock()
+	// Drop idle buckets from the old end (amortised O(1)).
+	for e := sh.lru.Front(); e != nil; e = sh.lru.Front() {
+		old := e.Value.(*bucket)
+		if now.Sub(old.last) <= idleExpiry {
+			break
+		}
+		sh.lru.Remove(e)
+		delete(sh.buckets, old.key)
+	}
+	b, ok := sh.buckets[key]
 	if !ok {
-		if len(buckets) >= maxKeys {
-			for k, v := range buckets {
-				if now.Sub(v.last) > 5*time.Minute {
-					delete(buckets, k)
-				}
+		// Full shard: evict the least recently used bucket. That bucket restarts full, which only ever lets more
+		// through, never less.
+		if len(sh.buckets) >= maxKeys/shardCount {
+			if e := sh.lru.Front(); e != nil {
+				sh.lru.Remove(e)
+				delete(sh.buckets, e.Value.(*bucket).key)
 			}
 		}
-		b = &bucket{tokens: r.Burst, last: now}
-		buckets[key] = b
+		b = &bucket{key: key, tokens: r.Burst, last: now}
+		b.elem = sh.lru.PushBack(b)
+		sh.buckets[key] = b
+	} else {
+		sh.lru.MoveToBack(b.elem)
 	}
-	b.tokens += now.Sub(b.last).Seconds() * r.PerSec
+	if elapsed := now.Sub(b.last); elapsed > 0 {
+		b.tokens += elapsed.Seconds() * r.PerSec
+	}
 	if b.tokens > r.Burst {
 		b.tokens = r.Burst
 	}
-	b.last = now
+	if now.After(b.last) {
+		b.last = now
+	}
 	if b.tokens >= 1 {
 		b.tokens--
-		mu.Unlock()
+		sh.mu.Unlock()
 		return true
 	}
-	counts[r.Name]++
 	logIt := now.Sub(b.logged) > time.Minute
 	if logIt {
 		b.logged = now
 	}
-	mu.Unlock()
+	sh.mu.Unlock()
+	countsMu.Lock()
+	counts[r.Name]++
+	countsMu.Unlock()
 	if logIt {
 		logging.Warn("LIMIT", aurora.Yellow(r.Name), "over the limit for", aurora.BrightCyan(ip))
 	}
 	return false
 }
 
+// Keys returns how many buckets are kept (tests, dashboard).
+func Keys() int {
+	n := 0
+	for i := range shards {
+		shards[i].mu.Lock()
+		n += len(shards[i].buckets)
+		shards[i].mu.Unlock()
+	}
+	return n
+}
+
 // Counts returns how many events each rule has refused since start (for the admin dashboard / tests).
 func Counts() map[string]uint64 {
-	mu.Lock()
-	defer mu.Unlock()
+	countsMu.Lock()
+	defer countsMu.Unlock()
 	out := make(map[string]uint64, len(counts))
 	for k, v := range counts {
 		out[k] = v
@@ -112,7 +172,13 @@ func Counts() map[string]uint64 {
 
 // Reset clears all state (tests).
 func Reset() {
-	mu.Lock()
-	buckets, counts = map[string]*bucket{}, map[string]uint64{}
-	mu.Unlock()
+	for i := range shards {
+		shards[i].mu.Lock()
+		shards[i].buckets = map[string]*bucket{}
+		shards[i].lru.Init()
+		shards[i].mu.Unlock()
+	}
+	countsMu.Lock()
+	counts = map[string]uint64{}
+	countsMu.Unlock()
 }

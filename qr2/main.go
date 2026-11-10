@@ -108,7 +108,7 @@ func StartServer(reload bool) {
 			if err != nil || n < 5 {
 				continue
 			}
-			if !ffclimit.Allow(ffclimit.QR2Packet, addr.(*net.UDPAddr).IP.String()) {
+			if !allowPacket(*addr.(*net.UDPAddr), buf[:n]) {
 				continue
 			}
 
@@ -183,6 +183,7 @@ func handleConnection(conn net.PacketConn, addr net.UDPAddr, buffer []byte, n in
 		if session.Challenge != "" {
 			// TODO: Verify the challenge
 			session.Authenticated = true
+			markAuthenticatedSource(addr, session.SessionID)
 			mutex.Unlock()
 
 			_, _ = conn.WriteTo(createResponseHeader(ClientRegisteredReply, session.SessionID), &addr)
@@ -264,4 +265,42 @@ func handleConnection(conn net.PacketConn, addr net.UDPAddr, buffer []byte, n in
 
 func createResponseHeader(command byte, sessionId uint32) []byte {
 	return binary.BigEndian.AppendUint32([]byte{0xfe, 0xfd, command}, sessionId)
+}
+
+// authSources maps the lookup address (ip:port) of every authenticated session to the session ID it
+// authenticated with (NET-09). The per-IP bucket is keyed on the UDP source address, which an off-path attacker
+// can forge; a datagram from an authenticated session's exact ip:port that carries its session ID skips that bucket,
+// so a forged flood cannot drain it for the real client.
+var (
+	authSourcesMu sync.RWMutex
+	authSources   = map[uint64]uint32{}
+)
+
+func markAuthenticatedSource(addr net.UDPAddr, sessionID uint32) {
+	authSourcesMu.Lock()
+	authSources[makeLookupAddr(addr.String())] = sessionID
+	authSourcesMu.Unlock()
+}
+
+func forgetAuthenticatedSource(addr net.UDPAddr) {
+	forgetAuthenticatedLookup(makeLookupAddr(addr.String()))
+}
+
+func forgetAuthenticatedLookup(lookupAddr uint64) {
+	authSourcesMu.Lock()
+	delete(authSources, lookupAddr)
+	authSourcesMu.Unlock()
+}
+
+// allowPacket applies the per-IP QR2 limit to one datagram (len(buf) >= 5).
+func allowPacket(addr net.UDPAddr, buf []byte) bool {
+	if len(buf) >= 5 {
+		authSourcesMu.RLock()
+		sid, ok := authSources[makeLookupAddr(addr.String())]
+		authSourcesMu.RUnlock()
+		if ok && sid == binary.BigEndian.Uint32(buf[1:5]) {
+			return true
+		}
+	}
+	return ffclimit.Allow(ffclimit.QR2Packet, addr.IP.String())
 }

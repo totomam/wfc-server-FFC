@@ -71,6 +71,7 @@ func removeSession(addr uint64) {
 	delete(sessionBySearchID, sessions[addr].SearchID)
 
 	delete(sessions, addr)
+	forgetAuthenticatedLookup(addr)
 }
 
 // Remove session from group. Expects the global mutex to already be locked.
@@ -351,6 +352,9 @@ func loadSessions() error {
 		session.messageAckWaker = &sleep.Waker{}
 		session.groupPointer = nil
 		session.login = nil
+		if session.Authenticated {
+			markAuthenticatedSource(session.Addr, session.SessionID)
+		}
 	}
 
 	return nil
