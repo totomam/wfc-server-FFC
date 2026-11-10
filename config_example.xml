@@ -95,6 +95,10 @@
           Default 365 = 1 year (human decision 2026-11-10; change it to what your privacy notice says). Backups keep the same data. -->
      <personalDataRetentionDays>365</personalDataRetentionDays>
 
+     <!-- PvP results (NET-10). A result report is accepted only for two players who were in one match group
+          within resultPairWindowMinutes (default 30; a disconnect after grouping still counts). -->
+     <resultPairWindowMinutes>30</resultPairWindowMinutes>
+
      <eventReporting>
           <!-- Enable to log events to the "events" table in the database -->
           <logToDatabase>true</logToDatabase>

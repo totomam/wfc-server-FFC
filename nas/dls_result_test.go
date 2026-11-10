@@ -42,7 +42,9 @@ func (f *fakeResultDB) StoreMatchReportDetail(r database.MatchReport) (database.
 	return database.StoreResult{ID: int64(len(f.stored)), Status: st, Mismatch: f.mismatch}, f.lastErr
 }
 
+// goldenFields also remembers the golden pair as QR2-grouped (NET-10), as a real match would.
 func goldenFields(t *testing.T) map[string][]byte {
+	qr2.RememberPair(1000000101, 1000000202)
 	a1, err1 := common.Base64DwcEncoding.DecodeString(goldenAttr1)
 	a2, err2 := common.Base64DwcEncoding.DecodeString(goldenAttr2)
 	if err1 != nil || err2 != nil {
@@ -100,6 +102,24 @@ func TestDlsResultValidation(t *testing.T) {
 	delete(fake.owners, 1000000202)
 	if got := string(dlsResult("t", goldenFields(t))); got != "err opponent" {
 		t.Fatalf("opponent check: %q", got)
+	}
+}
+
+// NET-10 (#71, decision c): a report (valid token, own profile, existing opponent) for a pair the server never saw in
+// one QR2 group is refused; the same report is recorded once the pair was grouped.
+func TestResultPairRequired(t *testing.T) {
+	fake := &fakeResultDB{owners: map[uint32]uint64{1000000101: 4242, 1000000202: 777}}
+	old := resultDB
+	resultDB = fake
+	defer func() { resultDB = old }()
+	f := goldenFields(t)
+	qr2.ForgetPairs()
+	if got := string(dlsResult("t", f)); got != "err pair" || len(fake.stored) != 0 {
+		t.Fatalf("unpaired report: %q, stored %d", got, len(fake.stored))
+	}
+	qr2.RememberPair(1000000202, 1000000101) // order does not matter
+	if got := string(dlsResult("t", f)); got != "ok 1 single" || len(fake.stored) != 1 {
+		t.Fatalf("paired report: %q, stored %+v", got, fake.stored)
 	}
 }
 

@@ -145,6 +145,10 @@ var matchQueueOf = func(a, b uint32) string {
 	return queueFromGroups(qr2.GetGroups([]string{"dental2ds"}, []string{}, false), a, b)
 }
 
+// resultPairSeen (NET-10, human decision 2026-11-10 c): the two profiles were in one QR2 group within
+// qr2.PairWindow (30 min default; a disconnect after grouping still counts). nas and qr2 share the backend process.
+var resultPairSeen = qr2.SeenTogether
+
 func queueFromGroups(groups []qr2.GroupInfo, a, b uint32) string {
 	sa, sb := strconv.FormatUint(uint64(a), 10), strconv.FormatUint(uint64(b), 10)
 	for _, g := range groups {
@@ -189,6 +193,10 @@ func dlsResult(moduleName string, fields map[string][]byte) []byte {
 	if ok, err := resultDB.ProfileExists(r.OppPID); err != nil || !ok {
 		logging.Error(moduleName, "result: unknown opponent", aurora.Cyan(r.OppPID))
 		return []byte("err opponent")
+	}
+	if !resultPairSeen(r.MyPID, r.OppPID) { // NET-10: only a pair QR2 grouped together recently
+		logging.Error(moduleName, "result: profiles", aurora.Cyan(r.MyPID), "and", aurora.Cyan(r.OppPID), "were not in a match group together")
+		return []byte("err pair")
 	}
 	m := r.toMatchReport(raw)
 	m.Queue = matchQueueOf(m.PidA, m.PidB)

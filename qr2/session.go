@@ -80,6 +80,7 @@ func (session *Session) removeFromGroup() {
 		return
 	}
 
+	notePairsOf(session, session.groupPointer) // NET-10: a disconnect after grouping still counts
 	delete(session.groupPointer.players, session)
 
 	if len(session.groupPointer.players) == 0 {

@@ -57,6 +57,10 @@ type Config struct {
 	// PersonalDataRetentionDays (NET-22): `wwfc purge` clears IPs, device IDs, friend codes and raw result reports
 	// older than this. Absent = DefaultRetentionDays; 0 or less = purge disabled.
 	PersonalDataRetentionDays *int `xml:"personalDataRetentionDays"`
+
+	// ResultPairWindowMinutes (NET-10): a PvP result report is accepted only for two profiles that were in one QR2
+	// group within this many minutes (absent or <= 0 = qr2.DefaultPairWindow, 30).
+	ResultPairWindowMinutes *int `xml:"resultPairWindowMinutes"`
 }
 
 // DefaultRetentionDays is the personal-data retention period when config.xml sets none (NET-22; policy, see

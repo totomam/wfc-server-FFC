@@ -136,6 +136,7 @@ func processResvOK(moduleName string, matchVersion int, reservation common.Match
 	}
 
 	group.players[destination] = true
+	notePairsOf(destination, group) // NET-10: remembered for result reports
 	destination.groupPointer = group
 	destination.GroupName = group.GroupName
 

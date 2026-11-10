@@ -61,6 +61,10 @@ func StartServer(reload bool) {
 		})
 	}
 
+	if config.ResultPairWindowMinutes != nil && *config.ResultPairWindowMinutes > 0 {
+		PairWindow = time.Duration(*config.ResultPairWindowMinutes) * time.Minute
+	}
+
 	masterConn = conn
 	inShutdown.Store(false)
 
@@ -85,6 +89,10 @@ func StartServer(reload bool) {
 		}
 
 		logging.Notice("QR2", "Loaded", aurora.Cyan(len(groups)), "groups")
+
+		if err := loadPairs(); err != nil {
+			logging.Error("QR2", "Failed to load recent pairs:", err)
+		}
 	}
 
 	waitGroup.Add(1)
@@ -147,6 +155,10 @@ func Shutdown() {
 	}
 
 	logging.Notice("QR2", "Saved", aurora.Cyan(len(groups)), "groups")
+
+	if err := savePairs(); err != nil {
+		logging.Error("QR2", "Failed to save recent pairs:", err)
+	}
 }
 
 func handleConnection(conn net.PacketConn, addr net.UDPAddr, buffer []byte, n int) {
