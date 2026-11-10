@@ -3,6 +3,8 @@ package natneg
 import (
 	"fmt"
 	"net"
+	"strconv"
+	"strings"
 	"wwfc/logging"
 	"wwfc/qr2"
 
@@ -10,7 +12,8 @@ import (
 )
 
 func (session *NATNEGSession) handleReport(conn net.PacketConn, addr net.Addr, buffer []byte, _moduleName string, version byte) {
-	if len(buffer) < 2 {
+	// The reply echoes the first 9 bytes of the report.
+	if len(buffer) < 9 {
 		logging.Error(_moduleName, "Invalid packet size")
 		return
 	}
@@ -31,8 +34,12 @@ func (session *NATNEGSession) handleReport(conn net.PacketConn, addr net.Addr, b
 	logging.Notice(moduleName, "Report from", aurora.BrightCyan(clientIndex), "result:", aurora.Cyan(result))
 
 	if client, exists := session.Clients[clientIndex]; exists {
+		connecting, connExists := session.Clients[client.ConnectingIndex]
+		if !connExists || connecting == nil {
+			logging.Error(moduleName, "Report for unknown connecting index", aurora.Cyan(client.ConnectingIndex))
+			return
+		}
 		client.Result[client.ConnectingIndex] = result
-		connecting := session.Clients[client.ConnectingIndex]
 		client.ConnectingIndex = clientIndex
 		client.ConnectAck = false
 
@@ -40,10 +47,28 @@ func (session *NATNEGSession) handleReport(conn net.PacketConn, addr net.Addr, b
 			if otherResult != 1 {
 				result = otherResult
 			}
-			qr2.ProcessNATNEGReport(result, client.ServerIP, connecting.ServerIP)
+			if !isValidIPv4Port(client.ServerIP) || !isValidIPv4Port(connecting.ServerIP) {
+				logging.Error(moduleName, "Report with invalid server IP", aurora.Cyan(client.ServerIP), aurora.Cyan(connecting.ServerIP))
+			} else {
+				qr2.ProcessNATNEGReport(result, client.ServerIP, connecting.ServerIP)
+			}
 		}
 	}
 
 	// Send remaining requests
 	session.sendConnectRequests(moduleName)
+}
+
+// isValidIPv4Port reports whether s is "a.b.c.d:port", the only form
+// common.IPFormatToInt accepts without panicking.
+func isValidIPv4Port(s string) bool {
+	host, port, err := net.SplitHostPort(s)
+	if err != nil {
+		return false
+	}
+	if ip := net.ParseIP(host); ip == nil || ip.To4() == nil || strings.Contains(host, ":") {
+		return false
+	}
+	p, err := strconv.Atoi(port)
+	return err == nil && p >= 0 && p <= 0xffff
 }
