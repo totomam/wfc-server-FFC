@@ -17,7 +17,8 @@ OLD=$(W git -C $DIR rev-parse --short HEAD)
 W git -C $DIR fetch -q origin "$BRANCH"
 W git -C $DIR checkout -q "${COMMIT:-FETCH_HEAD}"
 (cd $DIR && W go build -o wwfc.new . && mv wwfc.new wwfc)
-W mkdir -p $DIR/balance $DIR/package
+W mkdir -p $DIR/balance $DIR/boot $DIR/package $DIR/dlc $DIR/state $DIR/logs   # the sandboxed unit writes only these (NET-34)
+if [ -f $DIR/payload/private-key.pem ]; then chown wwfc:wwfc $DIR/payload/private-key.pem; chmod 600 $DIR/payload/private-key.pem; fi
 systemctl restart wwfc
 sleep 3
 echo "== updated $OLD -> $(W git -C $DIR log -1 --format='%h %s')"

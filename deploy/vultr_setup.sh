@@ -65,8 +65,11 @@ if [ ! -f $DIR/config.xml ]; then
       -e '/<discord>/,/<\/discord>/d' \
       $DIR/config_example.xml > $DIR/config.xml
 fi
-mkdir -p $DIR/balance
+# Every directory the server writes (the sandboxed unit below can write nothing else; they must exist before start).
+mkdir -p $DIR/balance $DIR/boot $DIR/package $DIR/dlc $DIR/state $DIR/logs
 chown -R wwfc:wwfc $DIR && chmod 600 $DIR/config.xml
+# Payload signing key (integrated payload server), if installed: readable by wwfc only.
+if [ -f $DIR/payload/private-key.pem ]; then chown wwfc:wwfc $DIR/payload/private-key.pem; chmod 600 $DIR/payload/private-key.pem; fi
 
 # DNS: answer ONLY nintendowifi.net (no upstream = not an open resolver)
 cat > /etc/dnsmasq.d/ffc.conf <<DNS
@@ -95,6 +98,35 @@ WorkingDirectory=$DIR
 ExecStart=$DIR/wwfc
 Restart=on-failure
 AmbientCapabilities=CAP_NET_BIND_SERVICE
+CapabilityBoundingSet=CAP_NET_BIND_SERVICE
+# Sandbox (NET-34): read-only OS and /opt/wfc except the directories the server writes.
+NoNewPrivileges=yes
+ProtectSystem=strict
+ReadWritePaths=$DIR/balance $DIR/boot $DIR/package $DIR/dlc $DIR/state $DIR/logs
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+ProtectHostname=yes
+ProtectProc=invisible
+ProcSubset=pid
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+RestrictNamespaces=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+SystemCallFilter=~@privileged
+LimitNOFILE=65536
+SystemCallErrorNumber=EPERM
+RemoveIPC=yes
+UMask=0027
 [Install]
 WantedBy=multi-user.target
 UNIT
