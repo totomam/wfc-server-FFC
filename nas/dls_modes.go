@@ -79,6 +79,9 @@ func modeFile(dir, game string, fields map[string][]byte, now time.Time) string 
 				break
 			}
 		}
+		// FFC-DECOMP NET-12: stage-0 binds a manifest to the mode tag of the request (crc32 of attr1), so the base
+		// or event manifest would be refused (MODE error + "Could not load"). No file for this mode -> "NONE".
+		return ""
 	}
 	return activeEventFile(dir, game, now)
 }

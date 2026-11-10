@@ -31,7 +31,7 @@ func TestDlsModes(t *testing.T) {
 	w(dir, "VDEE.draft.bin", "draft")
 	now := time.Now()
 	for mode, wantP := range map[string]string{"": "VDEE.bin", "default": "VDEE.bin", "draft": "VDEE.draft.bin",
-		"hard": "VDEE.bin", "nope": "VDEE.bin", "../x": "VDEE.bin"} {
+		"hard": ".", "nope": ".", "../x": "."} { // NET-12: no file for the mode -> "" (NONE)
 		g := map[string][]byte{"rhgamecd": []byte("VDEE"), "attr1": []byte(mode)}
 		if got := filepath.Base(modeFile(dir, "VDEE", g, now)); got != wantP {
 			t.Errorf("mode %q: %s want %s", mode, got, wantP)
