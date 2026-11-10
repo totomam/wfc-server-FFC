@@ -5,6 +5,7 @@ import (
 	"sort"
 	"strconv"
 	"time"
+	"unicode/utf8"
 	"wwfc/database"
 )
 
@@ -47,6 +48,7 @@ type SakeFieldDefinition struct {
 	// "{CURRENT_TIMESTAMP}" can be used to set the current timestamp as the default value (only for DateAndTime type).
 	Default string
 	// If zero, the default field length limit will be used.
+	// For UnicodeString/AsciiString fields it counts characters (runes) after decoding, else bytes.
 	LengthLimit int
 
 	// Optional function for custom validation.
@@ -98,6 +100,22 @@ func isFFCAiPolicy(value string) bool {
 	return err == nil && v >= 0 && v <= 5
 }
 
+// isFFCGroup: dental2ds group1/group2 index 4 tables of 9 entries in the game (ov007, FFC decomp NET-05/NET-39),
+// so only 0..8 is safe to serve to other players.
+func isFFCGroup(value string) bool {
+	v, err := strconv.Atoi(value)
+	return err == nil && v >= 0 && v <= 8
+}
+
+// dental2ds tbl_main_na string caps (FFC decomp NET-39; client buffers: player_name 9, team_name 21, nicknames 16+NUL
+// halfwords). team_name: ffc_badge.go serves "<badge> <name>" cut to FFCBadgeMaxLen (12), so the stored name may use
+// the whole client room.
+const (
+	ffcPlayerNameMax = 8
+	ffcTeamNameMax   = 20
+	ffcNicknameMax   = 16
+)
+
 var TableDefinitions = map[string]SakeTable{
 	// Fossil Fighters: Champions (dental2ds) Team Plaza: one team record per profile (EnforceLimit makes CreateRecord enforce LimitPerOwner), public search/rate (FFC decomp docs/online/TEAM_PLAZA.md).
 	"dental2ds/tbl_main_na": {
@@ -118,22 +136,22 @@ var TableDefinitions = map[string]SakeTable{
 		Fields: map[string]SakeFieldDefinition{
 			"player_level":  {Type: database.SakeFieldTypeInt},
 			"player_symbol": {Type: database.SakeFieldTypeInt},
-			"team_name":     {Type: database.SakeFieldTypeUnicodeString},
+			"team_name":     {Type: database.SakeFieldTypeUnicodeString, LengthLimit: ffcTeamNameMax},
 			"formation":     {Type: database.SakeFieldTypeInt},
 			"ai_1":          {Type: database.SakeFieldTypeInt, IsValidFunc: isFFCAiPolicy},
 			"ai_2":          {Type: database.SakeFieldTypeInt, IsValidFunc: isFFCAiPolicy},
 			"ai_3":          {Type: database.SakeFieldTypeInt, IsValidFunc: isFFCAiPolicy},
 			"ai_4":          {Type: database.SakeFieldTypeInt, IsValidFunc: isFFCAiPolicy},
 			"team_rank":     {Type: database.SakeFieldTypeInt},
-			"group1":        {Type: database.SakeFieldTypeInt},
-			"group2":        {Type: database.SakeFieldTypeInt},
-			"player_name":   {Type: database.SakeFieldTypeUnicodeString},
+			"group1":        {Type: database.SakeFieldTypeInt, IsValidFunc: isFFCGroup},
+			"group2":        {Type: database.SakeFieldTypeInt, IsValidFunc: isFFCGroup},
+			"player_name":   {Type: database.SakeFieldTypeUnicodeString, LengthLimit: ffcPlayerNameMax},
 			"rev_id_1":      {Type: database.SakeFieldTypeInt},
 			"rev_id_2":      {Type: database.SakeFieldTypeInt},
 			"rev_id_3":      {Type: database.SakeFieldTypeInt},
 			"rev_id_4":      {Type: database.SakeFieldTypeInt},
 			"rev_id_5":      {Type: database.SakeFieldTypeInt},
-			"rev1_name":     {Type: database.SakeFieldTypeUnicodeString},
+			"rev1_name":     {Type: database.SakeFieldTypeUnicodeString, LengthLimit: ffcNicknameMax},
 			"rev1_rank":     {Type: database.SakeFieldTypeInt},
 			"rev1_bp":       {Type: database.SakeFieldTypeInt},
 			"rev1_head_id":  {Type: database.SakeFieldTypeInt},
@@ -146,7 +164,7 @@ var TableDefinitions = map[string]SakeTable{
 			"rev1_leg_pt":   {Type: database.SakeFieldTypeInt},
 			"rev1_after_id": {Type: database.SakeFieldTypeInt},
 			"rev1_after_pt": {Type: database.SakeFieldTypeInt},
-			"rev2_name":     {Type: database.SakeFieldTypeUnicodeString},
+			"rev2_name":     {Type: database.SakeFieldTypeUnicodeString, LengthLimit: ffcNicknameMax},
 			"rev2_rank":     {Type: database.SakeFieldTypeInt},
 			"rev2_bp":       {Type: database.SakeFieldTypeInt},
 			"rev2_head_id":  {Type: database.SakeFieldTypeInt},
@@ -159,7 +177,7 @@ var TableDefinitions = map[string]SakeTable{
 			"rev2_leg_pt":   {Type: database.SakeFieldTypeInt},
 			"rev2_after_id": {Type: database.SakeFieldTypeInt},
 			"rev2_after_pt": {Type: database.SakeFieldTypeInt},
-			"rev3_name":     {Type: database.SakeFieldTypeUnicodeString},
+			"rev3_name":     {Type: database.SakeFieldTypeUnicodeString, LengthLimit: ffcNicknameMax},
 			"rev3_rank":     {Type: database.SakeFieldTypeInt},
 			"rev3_bp":       {Type: database.SakeFieldTypeInt},
 			"rev3_head_id":  {Type: database.SakeFieldTypeInt},
@@ -172,7 +190,7 @@ var TableDefinitions = map[string]SakeTable{
 			"rev3_leg_pt":   {Type: database.SakeFieldTypeInt},
 			"rev3_after_id": {Type: database.SakeFieldTypeInt},
 			"rev3_after_pt": {Type: database.SakeFieldTypeInt},
-			"rev4_name":     {Type: database.SakeFieldTypeUnicodeString},
+			"rev4_name":     {Type: database.SakeFieldTypeUnicodeString, LengthLimit: ffcNicknameMax},
 			"rev4_rank":     {Type: database.SakeFieldTypeInt},
 			"rev4_bp":       {Type: database.SakeFieldTypeInt},
 			"rev4_head_id":  {Type: database.SakeFieldTypeInt},
@@ -185,7 +203,7 @@ var TableDefinitions = map[string]SakeTable{
 			"rev4_leg_pt":   {Type: database.SakeFieldTypeInt},
 			"rev4_after_id": {Type: database.SakeFieldTypeInt},
 			"rev4_after_pt": {Type: database.SakeFieldTypeInt},
-			"rev5_name":     {Type: database.SakeFieldTypeUnicodeString},
+			"rev5_name":     {Type: database.SakeFieldTypeUnicodeString, LengthLimit: ffcNicknameMax},
 			"rev5_rank":     {Type: database.SakeFieldTypeInt},
 			"rev5_bp":       {Type: database.SakeFieldTypeInt},
 			"rev5_head_id":  {Type: database.SakeFieldTypeInt},
@@ -446,7 +464,12 @@ func (t *SakeTable) CheckValidField(fieldName string, field database.SakeField) 
 		}
 		verifyFunc = fieldDef.IsValidFunc
 	}
-	if len(field.Value) > lengthLimit {
+	if field.Type == database.SakeFieldTypeUnicodeString || field.Type == database.SakeFieldTypeAsciiString {
+		// String limits count characters after decoding, with the byte cap as a backstop
+		if len(field.Value) > MaxSakeFieldValueLength || utf8.RuneCountInString(field.Value) > lengthLimit {
+			return ResultFieldTypeInvalid
+		}
+	} else if len(field.Value) > lengthLimit {
 		return ResultFieldTypeInvalid
 	}
 
