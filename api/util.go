@@ -89,6 +89,11 @@ func parseGet(r *http.Request, w http.ResponseWriter, requiredRole Role) (query 
 }
 
 func parsePost(r *http.Request, w http.ResponseWriter, parsed any, requiredRole Role) error {
+	return parsePostLimit(r, w, parsed, requiredRole, maxPostBodySize)
+}
+
+// parsePostLimit is parsePost with a handler-specific body cap (the boot upload carries a 175.5 KB window).
+func parsePostLimit(r *http.Request, w http.ResponseWriter, parsed any, requiredRole Role, limit int64) error {
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 
 	switch r.Method {
@@ -108,7 +113,7 @@ func parsePost(r *http.Request, w http.ResponseWriter, parsed any, requiredRole 
 	}
 
 	// The secret is inside the JSON body, so the size cap has to come before authentication.
-	jsonData, err := io.ReadAll(http.MaxBytesReader(w, r.Body, maxPostBodySize))
+	jsonData, err := io.ReadAll(http.MaxBytesReader(w, r.Body, limit))
 	if err != nil {
 		var tooLarge *http.MaxBytesError
 		if errors.As(err, &tooLarge) {

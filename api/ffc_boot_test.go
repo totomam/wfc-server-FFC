@@ -65,7 +65,11 @@ func TestFFCBootHandler(t *testing.T) {
 	if c, b := post(`{"secret":"s3cret","mode":"blue","force":true,"manifest":"` + b64(m) + `"}`); c != 200 {
 		t.Fatal("force:", c, b)
 	}
-	if c, _ := post(`{"secret":"s3cret","manifest":"` + strings.Repeat("A", 2<<20) + `"}`); c != 400 {
+	if c, _ := post(`{"secret":"s3cret","manifest":"` + strings.Repeat("A", 2<<20) + `"}`); c != 413 {
 		t.Fatal("oversize body:", c)
+	}
+	// A window-sized body (above the 64 KiB generic admin cap) must still reach the boot handler.
+	if c, _ := post(`{"secret":"s3cret","manifest":"` + strings.Repeat("A", 300<<10) + `"}`); c == 413 {
+		t.Fatal("window-sized body refused by the generic cap")
 	}
 }

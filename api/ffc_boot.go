@@ -44,7 +44,7 @@ func HandleFFCBoot(w http.ResponseWriter, r *http.Request) {
 	}
 	r.Body = http.MaxBytesReader(w, r.Body, ffcBootBodyMax)
 	var req ffcBootRequest
-	if err := parsePost(r, w, &req, RoleModerator); err != nil {
+	if err := parsePostLimit(r, w, &req, RoleModerator, ffcBootBodyMax); err != nil {
 		return
 	}
 	res, err := ffcboot.Install(ffcBonusGame, req.Mode, req.Display, req.Manifest, req.Parts, req.Force)
