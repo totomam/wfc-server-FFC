@@ -33,7 +33,7 @@ func TestFFCMailHandler(t *testing.T) {
 		t.Fatal("no pid:", c, b)
 	}
 	rec := httptest.NewRecorder()
-	HandleFFCMail(rec, httptest.NewRequest("GET", "/api/ffc/admin/mail?secret=s3cret&pid=10", nil))
+	HandleFFCMail(rec, adminGET("/api/ffc/admin/mail?pid=10", "s3cret"))
 	var out struct {
 		Pid  uint32
 		Mail []ffcbonus.Mail

@@ -13,7 +13,7 @@ import (
 
 // FFC live counter + admin dashboard (ffc-decomp ROADMAP #30, #33, #72).
 //   GET /api/ffc/online                    public, counts only (no ids/names): for a web/Discord widget (#39).
-//   GET /api/ffc/admin/dashboard?secret=…  online players (pid, name), match activity, flagged rows.
+//   GET /api/ffc/admin/dashboard  online players (pid, name), match activity, flagged rows.
 
 const ffcGameName = "dental2ds"
 

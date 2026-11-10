@@ -67,13 +67,13 @@ func TestFFCTableHandler(t *testing.T) {
 	}
 	get := func(q string) (int, string) {
 		rec := httptest.NewRecorder()
-		HandleFFCTable(rec, httptest.NewRequest("GET", "/api/ffc/admin/table"+q, nil))
+		HandleFFCTable(rec, adminGET("/api/ffc/admin/table", q))
 		return rec.Code, rec.Body.String()
 	}
-	if c, _ := get("?secret=no"); c != 401 {
+	if c, _ := get("no"); c != 401 {
 		t.Fatal("get wrong secret:", c)
 	}
-	c, b := get("?secret=s3cret")
+	c, b := get("s3cret")
 	var out struct {
 		Tables []ffctable.Installed `json:"tables"`
 	}

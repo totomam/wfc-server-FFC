@@ -13,7 +13,7 @@ import (
 )
 
 // FFC persistent player identity (ffc-decomp ROADMAP #53), admin only:
-//   GET  /api/ffc/admin/links?secret=…                                  every alias -> canonical link
+//   GET  /api/ffc/admin/links                                  every alias -> canonical link
 //   POST /api/ffc/admin/links {"secret","alias","canonical","note"}     link (alias's matches count as canonical's)
 //   POST /api/ffc/admin/links {"secret","alias","delete":true}          unlink
 // All public /api/ffc/* stats apply the links (pid query parameters too); match_results rows are not rewritten.

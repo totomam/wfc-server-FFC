@@ -11,7 +11,7 @@ import (
 // (sake_ratings, one per rater); battle_* are the owner's self-reported Plaza results (unverified).
 //   GET /api/ffc/plaza[?sort=rating|ratings|wins&min=N&ghosts=1&limit=N]   public: teams visible right now (event
 //       windows applied), average + count of ratings, no rater ids.
-//   GET /api/ffc/admin/ratings?secret=…&record_id=N   one record: every rater pid + rating, histogram.
+//   GET /api/ffc/admin/ratings?record_id=N   one record: every rater pid + rating, histogram.
 
 const ffcGhostOwner = 999000001 // decomp tools/online_ghost.py GHOST_OWNER: server-made teams, never a real player
 

@@ -14,7 +14,7 @@ import (
 )
 
 // FFC event / boss Plaza teams (ffc-decomp ROADMAP #40), admin only:
-//   GET  /api/ffc/admin/events?secret=…[&all=1]   windows not yet over (all=1: every row), with active flag + team_name
+//   GET  /api/ffc/admin/events[?all=1]   windows not yet over (all=1: every row), with active flag + team_name
 //   POST /api/ffc/admin/events {"secret","record_id","name","start","end"}   schedule (RFC 3339 times, end > start)
 //   POST /api/ffc/admin/events {"secret","id","delete":true}                 remove one window
 // The team itself is an ordinary dental2ds/tbl_main_na sake record (decomp tools/online_ghost.py, owner 999000001;

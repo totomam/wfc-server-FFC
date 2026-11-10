@@ -12,7 +12,7 @@ import (
 // Banned-vivosaur lists (ffc-decomp ROADMAP #75 server part, ffcstats.BanRule): banned.json next to the server,
 // re-read with the match cache. Every public stat (ffcLoadMatchesCached callers) skips violating matches;
 //
-//	GET /api/ffc/admin/banned?secret=…[&days=N]  -> {"rules": [...], "violations": [{match, rule, pids, creatures}]}
+//	GET /api/ffc/admin/banned[?days=N]  -> {"rules": [...], "violations": [{match, rule, pids, creatures}]}
 //
 // (last N days, default 30, max 400). GET /api/ffc/banned (public) -> {"rules": [...]} for web/Discord.
 var ffcBannedFile = "banned.json"

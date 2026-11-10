@@ -52,7 +52,7 @@ func TestFFCBootHandler(t *testing.T) {
 		t.Fatal("manifest file")
 	}
 	rec := httptest.NewRecorder()
-	HandleFFCBoot(rec, httptest.NewRequest("GET", "/api/ffc/admin/boot?secret=s3cret", nil))
+	HandleFFCBoot(rec, adminGET("/api/ffc/admin/boot", "s3cret"))
 	var out struct {
 		Manifests []ffcboot.Installed `json:"manifests"`
 	}

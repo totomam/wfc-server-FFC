@@ -12,7 +12,7 @@ import (
 )
 
 // FFC per-player mail inbox (ffc-decomp ROADMAP #77, s104-online), admin only:
-//   GET  /api/ffc/admin/mail?secret=…&pid=P                -> {"pid": main, "mail": [{slot, text}]}
+//   GET  /api/ffc/admin/mail?pid=P                -> {"pid": main, "mail": [{slot, text}]}
 //   POST /api/ffc/admin/mail {"secret","pid","text"[,"slot"]}  write (slot 0/absent = first free; 1..16 replaces)
 //   POST /api/ffc/admin/mail {"secret","pid","slot","delete":true}  remove one
 //   POST /api/ffc/admin/mail {"secret","pid","clear":true}         empty the inbox

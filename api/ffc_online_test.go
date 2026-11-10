@@ -46,7 +46,7 @@ func TestFFCDashboardPostgres(t *testing.T) {
 		t.Fatal("dashboard without secret:", rec.Code)
 	}
 	rec = httptest.NewRecorder()
-	HandleFFCDashboard(rec, httptest.NewRequest("GET", "/api/ffc/admin/dashboard?days=2&secret=s3cret", nil))
+	HandleFFCDashboard(rec, adminGET("/api/ffc/admin/dashboard?days=2", "s3cret"))
 	var out map[string]any
 	if err := json.Unmarshal(rec.Body.Bytes(), &out); err != nil || rec.Code != 200 {
 		t.Fatal(rec.Code, rec.Body.String())

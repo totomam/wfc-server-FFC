@@ -40,8 +40,13 @@ func TestFFCPlazaTeams(t *testing.T) {
 
 func ffcCall(t *testing.T, h http.HandlerFunc, method, url, body string) (int, map[string]any) {
 	t.Helper()
+	return ffcCallReq(t, h, httptest.NewRequest(method, url, strings.NewReader(body)))
+}
+
+func ffcCallReq(t *testing.T, h http.HandlerFunc, r *http.Request) (int, map[string]any) {
+	t.Helper()
 	rec := httptest.NewRecorder()
-	h(rec, httptest.NewRequest(method, url, strings.NewReader(body)))
+	h(rec, r)
 	out := map[string]any{}
 	_ = json.Unmarshal(rec.Body.Bytes(), &out)
 	return rec.Code, out
@@ -110,7 +115,7 @@ func TestFFCPlazaEventsPostgres(t *testing.T) {
 	if v := visible(); !v["ev-live"] || v["ev-later"] || !v["ev-plain"] {
 		t.Fatal("visibility", v)
 	}
-	c, out = ffcCall(t, HandleFFCEvents, "GET", "/api/ffc/admin/events?secret=s3cret", "")
+	c, out = ffcCallReq(t, HandleFFCEvents, adminGET("/api/ffc/admin/events", "s3cret"))
 	evs, _ := out["events"].([]any)
 	if c != 200 || len(evs) < 2 {
 		t.Fatal(c, out)
@@ -149,7 +154,7 @@ func TestFFCPlazaEventsPostgres(t *testing.T) {
 	if c, _ := ffcCall(t, HandleFFCRatings, "GET", "/api/ffc/admin/ratings?record_id=1", ""); c != 401 {
 		t.Fatal("ratings no secret", c)
 	}
-	c, out = ffcCall(t, HandleFFCRatings, "GET", "/api/ffc/admin/ratings?secret=s3cret&record_id="+jsonNum(float64(ids["plain"])), "")
+	c, out = ffcCallReq(t, HandleFFCRatings, adminGET("/api/ffc/admin/ratings?record_id="+jsonNum(float64(ids["plain"])), "s3cret"))
 	if c != 200 || out["ratings"].(float64) != 2 || out["avg_rating"].(float64) != 3 || len(out["raters"].([]any)) != 2 {
 		t.Fatal(c, out)
 	}

@@ -10,7 +10,7 @@ import (
 )
 
 // FFC stage-0 package upload (ffc-decomp docs/online/STAGE0.md phase 4, s125-online), admin only:
-//   GET  /api/ffc/admin/boot?secret=…   -> {"manifests": [{file, mode, counter, label, bytes, parts, missing, listed}]}
+//   GET  /api/ffc/admin/boot   -> {"manifests": [{file, mode, counter, label, bytes, parts, missing, listed}]}
 //   POST /api/ffc/admin/boot {"secret", "mode", "display", "manifest": b64, "parts": [b64...], "force"}
 // The manifest is signed offline (tools/online_pkgnet.py / online_boot.py, key on the admin's PC); the server checks
 // format, bounds and every part's length + SHA-512 against it (never the signature), then writes

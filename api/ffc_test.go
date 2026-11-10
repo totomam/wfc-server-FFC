@@ -95,13 +95,13 @@ func TestFFCHandlersPostgres(t *testing.T) {
 		t.Fatal("flagged without secret must be 401, got", rec.Code)
 	}
 	fl := get("flagged", func(rec *httptest.ResponseRecorder) {
-		HandleFFCFlagged(rec, httptest.NewRequest("GET", "/api/ffc/admin/flagged?secret=s3cret&status=both&days=1", nil))
+		HandleFFCFlagged(rec, adminGET("/api/ffc/admin/flagged?status=both&days=1", "s3cret"))
 	})
 	if len(fl["rows"].([]any)) < 1 || fl["profiles"] == nil {
 		t.Fatal(fl)
 	}
 	rec = httptest.NewRecorder()
-	HandleFFCFlagged(rec, httptest.NewRequest("GET", "/api/ffc/admin/flagged?secret=s3cret&status=bogus", nil))
+	HandleFFCFlagged(rec, adminGET("/api/ffc/admin/flagged?status=bogus", "s3cret"))
 	if rec.Code != 400 {
 		t.Fatal("bad status must be 400")
 	}

@@ -10,7 +10,7 @@ import (
 )
 
 // FFC live balance overlay (FFCO v1, s129-online), admin only:
-//   GET  /api/ffc/admin/table?secret=…   -> {"tables": [{file, mode, rows, serial, crc, bytes}]}
+//   GET  /api/ffc/admin/table   -> {"tables": [{file, mode, rows, serial, crc, bytes}]}
 //   POST /api/ffc/admin/table {"secret", "mode", "table": b64}
 // mode "" / "default" = the base overlay <dir>/VDEE.ffco, else VDEE.<mode>.ffco. Format checked here only (magic,
 // version, n, length, crc, file < 2); an empty table removes the overlay. Live at once: the Nd action "table" serves it.

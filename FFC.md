@@ -7,6 +7,9 @@ Branch `ffc` = upstream `main` + two FFC patches:
 1. `nas`: fix the `/pr` name check for DS games (any DS game).
 2. `sake`: Team Plaza support (Sake ops, `dental2ds/tbl_main_na` table, game ID 3026).
 
+Admin API (`/api/ffc/admin/*`, `/api/ban` ...): GET sends the apiSecret in header `X-API-Secret` (no `?secret=`),
+POST in that header or the JSON `"secret"`; 10 failed auths/min per IP -> 429. Keep it behind an SSH tunnel.
+
 Tests: `go test ./...`; game-side conformance test and docs live in the FFC decomp repo (`docs/online/`).
 Plan, hosting needs and open items (DS HTTPS certificate): FFC decomp `docs/online/BACKUP_WIILINK.md`.
 Never commit keys or certificates to this repo.
@@ -28,7 +31,7 @@ Read-only JSON on the NAS HTTP port, no auth, CORS `*`; computed on read from `m
 - Events (config.xml `<eventReporting><discord><webhook><eventTypes>`, or `all`): `match_result` once per match when
   the 2nd console confirms it (players, result, queue, teams); `match_mismatch` when the reports disagree (+ field,
   second reporter). A lone (`single`) report sends nothing.
-- Admin list: `GET /api/ffc/admin/flagged?secret=<apiSecret>&status=mismatch|single|both&days=30&limit=100` ->
+- Admin list: `GET /api/ffc/admin/flagged?status=mismatch|single|both&days=30&limit=100` ->
   flagged rows (newest first, which side reported) + mismatch count per profile. Act with `/api/ban` (reason required).
 
 ## Online-friends feed (ffc-decomp ROADMAP #56)
@@ -49,7 +52,7 @@ Read-only JSON on the NAS HTTP port, no auth, CORS `*`; computed on read from `m
 ## Live counter + admin dashboard (ffc-decomp ROADMAP #30, #33, #72)
 - `GET /api/ffc/online` (public, counts only): `online` (logged in), `matchmaking` (QR2 sessions), `in_battle`,
   `modded` / `vanilla` (QR2 `dwc_mver` != / == 90). For a web/Discord widget (#39).
-- `GET /api/ffc/admin/dashboard?secret=<apiSecret>&days=14`: online players (pid, name, GP status), match activity
+- `GET /api/ffc/admin/dashboard?days=14`: online players (pid, name, GP status), match activity
   (per UTC hour + per day, queue split, status counts, peak hour), matches in 24 h, mismatch count per profile.
 
 ## Web presence widget (ffc-decomp ROADMAP #39)
@@ -58,7 +61,7 @@ Read-only JSON on the NAS HTTP port, no auth, CORS `*`; computed on read from `m
   `connect-src 'self'`, `frame-ancestors *`. Embed: `<iframe src="https://SERVER/ffc/widget?top=5" width="320" height="360" style="border:0"></iframe>`.
 
 ## Bonus Data messages (ffc-decomp ROADMAP #96, #38)
-- `GET /api/ffc/admin/bonus?secret=…` lists dlc/VDEE messages; `POST {"secret","id","text"}` writes one (id 1..64,
+- `GET /api/ffc/admin/bonus` lists dlc/VDEE messages; `POST {"secret","id","text"}` writes one (id 1..64,
   printable ASCII + newlines, <= 1023 chars, atomic), `POST {"secret","id","delete":true}` removes it. Served by the
   existing Nd count/list/contents. Each id reaches a save ONCE (the game flags it), so every announcement needs a new
   id; ids 1..7 also give fossil rocks 600..606 (empty in the USA ROM), ids 8..64 rock id 0 (verify in game first).
@@ -70,7 +73,7 @@ Read-only JSON on the NAS HTTP port, no auth, CORS `*`; computed on read from `m
   text is cached 60 s per console so list size == contents length. A file named 97..99 on disk is hidden.
 - s104 #77 mail inbox: up to 16 messages per player (main profile, #53 links), dlc/mail/VDEE/<pid>/<slot>, served
   to that player's console only as files `165`..`180` (the game keeps id % 100 = 65..80: shown on every visit with the
-  modded package, skipped by a stock game), body `MAIL i/n` + text. Admin: `GET /api/ffc/admin/mail?secret=…&pid=P`;
+  modded package, skipped by a stock game), body `MAIL i/n` + text. Admin: `GET /api/ffc/admin/mail?pid=P`;
   `POST {"secret","pid","text"[,"slot"]}` (slot 0 = first free), `{"secret","pid","slot","delete":true}`,
   `{"secret","pid","clear":true}`. Any alias pid resolves to the main one.
 - s105 #42 text replay: generated news file `196` (the game shows it as id 96, like mail) = the player's last 3
@@ -79,7 +82,7 @@ Read-only JSON on the NAS HTTP port, no auth, CORS `*`; computed on read from `m
 - s105 #54 login MOTD: one admin text (<= 360 printable ASCII chars, ~10 rows x 36), dlc/VDEE.motd (outside dlc/VDEE/,
   never a Bonus Data file), served by the Nd action `motd` (empty body = none). The modded loader shows it in an OK box
   at the Wi-Fi top menu once per Wi-Fi connection and again when it changes; stock games and the vanilla ROM never ask.
-  Admin: `GET /api/ffc/admin/motd?secret=…`; `POST {"secret","text"}`; `POST {"secret","delete":true}`.
+  Admin: `GET /api/ffc/admin/motd`; `POST {"secret","text"}`; `POST {"secret","delete":true}`.
 
 ## Ranked vs casual (ffc-decomp ROADMAP #35, server-only)
 - Each result row gets `queue` from the QR2 group holding both players at report time: Battle with Anyone (dwc_mtype
@@ -93,13 +96,13 @@ Read-only JSON on the NAS HTTP port, no auth, CORS `*`; computed on read from `m
   ONLY while one window is open; records without a window are unchanged. Delete its last window -> always-on again.
 - Make the team with decomp `tools/online_ghost.py` (owner 999000001; "boss" = whatever stats/moves you set), then
   `POST /api/ffc/admin/events {"secret","record_id","name","start","end"}` (RFC 3339, end > start; 404 unknown record),
-  `POST {"secret","id","delete":true}`, `GET ?secret=…[&all=1]` (windows not over / all, `active`, `team_name`).
+  `POST {"secret","id","delete":true}`, `GET [?all=1]` (windows not over / all, `active`, `team_name`).
   Decomp `tools/online_ghost.py event ...` wraps the same rows over psql.
 
 ## Plaza team / ghost ratings (ffc-decomp ROADMAP #57)
 - `GET /api/ffc/plaza[?sort=rating|ratings|wins&min=N&ghosts=1&limit=N]` (public, rate-limited): teams visible now,
   `ratings` count + `avg_rating` (game RateRecord, one per rater), self-reported `battle_win/lose/draw`, `ghost`.
-- `GET /api/ffc/admin/ratings?secret=…&record_id=N`: every rater pid + rating, histogram, average.
+- `GET /api/ffc/admin/ratings?record_id=N`: every rater pid + rating, histogram, average.
 
 ## Plaza ghost badges (ffc-decomp ROADMAP #78, server-only, s104)
 - Another player's Team Plaza record is served with a badge prefix on `team_name` (cut to 12 chars): `#1`..`#3` = top 3
@@ -112,7 +115,7 @@ Read-only JSON on the NAS HTTP port, no auth, CORS `*`; computed on read from `m
   save's Wi-Fi user data gets on its first connection). Same console + same save = same profile; a new save, a save
   moved to another DS (the game asks to "Update Wi-Fi User Information") or a new emulator firmware = a new profile
   (melonDS-verified, decomp docs/sessions/s100-online/identity.md).
-- `GET /api/ffc/admin/links?secret=…`; `POST /api/ffc/admin/links {"secret","alias","canonical","note"}` links an
+- `GET /api/ffc/admin/links`; `POST /api/ffc/admin/links {"secret","alias","canonical","note"}` links an
   extra profile to the main one (one level: linking to an alias uses its canonical; old links follow);
   `{"secret","alias","delete":true}` unlinks. Table `ffc_player_links`.
 - Every public `/api/ffc/*` stat (leaderboard, Elo, h2h, matches `pid=`) counts an alias as its canonical; a
@@ -123,7 +126,7 @@ Read-only JSON on the NAS HTTP port, no auth, CORS `*`; computed on read from `m
   then sends the text. The name (1..16 characters, `profanity.txt` words refused) is stored per profile
   (`ffc_lb_names`, all FFC profiles of the console's user id; a later new save on that console gets it too).
 - Every `/api/ffc/*` stats view, the in-game news and `/ffc/widget` show it instead of the save's player name.
-- Moderation: `GET /api/ffc/admin/names?secret=…` lists them; `POST /api/ffc/admin/names {"secret","pid"}` deletes one
+- Moderation: `GET /api/ffc/admin/names` lists them; `POST /api/ffc/admin/names {"secret","pid"}` deletes one
   (the game asks that player again on its next Wi-Fi visit).
 
 ## Tournaments + rewards feed (ffc-decomp ROADMAP #45, #43, server part)
@@ -167,7 +170,7 @@ Read-only JSON on the NAS HTTP port, no auth, CORS `*`; computed on read from `m
   "creatures":[ids],"start","end"}]` (<= 64 rules; start/end optional RFC 3339). A match where either team holds a
   banned creature (matching queue/modded/window) is left out of every public stat (leaderboard, Elo, challenges,
   rewards, news); re-read with the 15 s match cache. The game still lets the battle happen (client refusal = package work).
-- `GET /api/ffc/banned` (public): the rules. `GET /api/ffc/admin/banned?secret=…[&days=N]` (1..400, default 30):
+- `GET /api/ffc/banned` (public): the rules. `GET /api/ffc/admin/banned[?days=N]` (1..400, default 30):
   rules + violations `{match, rule, pids, creatures}` (the side(s) that broke it).
 
 ## Event packages / reskins (ffc-decomp ROADMAP #82, s106)
@@ -191,5 +194,5 @@ Read-only JSON on the NAS HTTP port, no auth, CORS `*`; computed on read from `m
 - Upload (admin, apiSecret): `POST /api/ffc/admin/boot {"secret","mode","display","manifest":b64,"parts":[b64..],"force"}`;
   checks format/bounds + every part's length and SHA-512 against the manifest (never the signature: consoles do), writes
   parts first, manifest last (atomic renames); `display` adds/updates the modes.tsv row; counter <= installed refused
-  unless `force`. `GET /api/ffc/admin/boot?secret=…` lists manifests (counter, label, parts, missing, listed).
+  unless `force`. `GET /api/ffc/admin/boot` lists manifests (counter, label, parts, missing, listed).
   Client: ffc-decomp `tools/online_upload.py`.

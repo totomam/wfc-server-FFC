@@ -26,7 +26,7 @@ func TestFFCBonusHandler(t *testing.T) {
 		t.Fatal(c, b)
 	}
 	rec := httptest.NewRecorder()
-	HandleFFCBonus(rec, httptest.NewRequest("GET", "/api/ffc/admin/bonus?secret=s3cret", nil))
+	HandleFFCBonus(rec, adminGET("/api/ffc/admin/bonus", "s3cret"))
 	var out struct{ Messages []ffcbonus.Message }
 	if err := json.Unmarshal(rec.Body.Bytes(), &out); err != nil || len(out.Messages) != 1 || out.Messages[0].Text != "Season 2!" {
 		t.Fatal(rec.Code, rec.Body.String())

@@ -180,7 +180,7 @@ func HandleFFCSeasons(w http.ResponseWriter, r *http.Request) {
 }
 
 // HandleFFCFlagged (admin, ffc-decomp ROADMAP #28): match_results rows that need a moderator, newest first, plus the
-// mismatch count per profile. GET /api/ffc/admin/flagged?secret=<apiSecret>&status=mismatch (default) | single |
+// mismatch count per profile. GET /api/ffc/admin/flagged?status=mismatch (default) | single |
 // both &days=N (default 30) &limit=N (default 100, max 1000). Follow up with /api/ban (reason required, #37).
 func HandleFFCFlagged(w http.ResponseWriter, r *http.Request) {
 	q, err := parseGet(r, w, RoleModerator)

@@ -18,7 +18,7 @@ func TestFFCMotdHandler(t *testing.T) {
 	}
 	get := func(q string) (int, string) {
 		rec := httptest.NewRecorder()
-		HandleFFCMotd(rec, httptest.NewRequest("GET", "/api/ffc/admin/motd"+q, nil))
+		HandleFFCMotd(rec, adminGET("/api/ffc/admin/motd", q))
 		var out struct{ Text string }
 		json.Unmarshal(rec.Body.Bytes(), &out)
 		return rec.Code, out.Text
@@ -29,7 +29,7 @@ func TestFFCMotdHandler(t *testing.T) {
 	if c, b := post(`{"secret":"s3cret","text":"Welcome to FFC online!"}`); c != 200 {
 		t.Fatal(c, b)
 	}
-	if c, s := get("?secret=s3cret"); c != 200 || s != "Welcome to FFC online!" {
+	if c, s := get("s3cret"); c != 200 || s != "Welcome to FFC online!" {
 		t.Fatal(c, s)
 	}
 	if c, _ := get(""); c != 401 {
@@ -41,7 +41,7 @@ func TestFFCMotdHandler(t *testing.T) {
 	if c, _ := post(`{"secret":"s3cret","delete":true}`); c != 200 {
 		t.Fatal(c)
 	}
-	if _, s := get("?secret=s3cret"); s != "" {
+	if _, s := get("s3cret"); s != "" {
 		t.Fatal("after delete:", s)
 	}
 }

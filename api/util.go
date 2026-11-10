@@ -1,14 +1,99 @@
 package api
 
 import (
+	"crypto/subtle"
 	"encoding/json"
 	"errors"
 	"io"
+	"net"
 	"net/http"
 	"net/url"
 	"reflect"
 	"strconv"
+	"sync"
+	"time"
 )
+
+// SecretHeader carries the admin API secret (NET-14). GET requests take it only from this header (the old
+// ?secret= query form leaked it into access logs, proxies and shell history); POST bodies may still carry "secret".
+const SecretHeader = "X-API-Secret"
+
+// Failed-auth rate limit (NET-14): more than authFailMax failures from one IP within authFailWindow -> 429 until
+// the window ends, without checking the secret.
+var (
+	authFailMax    = 10
+	authFailWindow = time.Minute
+	authFailMu     sync.Mutex
+	authFails      = map[string]*authFailEntry{}
+)
+
+type authFailEntry struct {
+	count int
+	reset time.Time
+}
+
+func clientIP(r *http.Request) string {
+	host, _, err := net.SplitHostPort(r.RemoteAddr)
+	if err != nil {
+		return r.RemoteAddr
+	}
+	return host
+}
+
+func authLimited(ip string) bool {
+	authFailMu.Lock()
+	defer authFailMu.Unlock()
+	e := authFails[ip]
+	if e == nil {
+		return false
+	}
+	if time.Now().After(e.reset) {
+		delete(authFails, ip)
+		return false
+	}
+	return e.count >= authFailMax
+}
+
+func authFailed(ip string) {
+	authFailMu.Lock()
+	defer authFailMu.Unlock()
+	now := time.Now()
+	if len(authFails) > 4096 {
+		for k, e := range authFails {
+			if now.After(e.reset) {
+				delete(authFails, k)
+			}
+		}
+	}
+	e := authFails[ip]
+	if e == nil || now.After(e.reset) {
+		e = &authFailEntry{reset: now.Add(authFailWindow)}
+		authFails[ip] = e
+	}
+	e.count++
+}
+
+// checkAuth authenticates r (header secret, else the body's) and writes 429/401 on refusal.
+func checkAuth(w http.ResponseWriter, r *http.Request, authInfo AuthInfo, requiredRole Role) bool {
+	if requiredRole == RoleNone {
+		return true
+	}
+	ip := clientIP(r)
+	if authLimited(ip) {
+		w.Header().Set("Retry-After", strconv.Itoa(int(authFailWindow/time.Second)))
+		replyError(w, http.StatusTooManyRequests, APIErrorFailedAuthentication)
+		return false
+	}
+	if h := r.Header.Get(SecretHeader); h != "" {
+		authInfo.Secret = h
+	}
+	if !authenticate(authInfo, requiredRole) {
+		authFailed(ip)
+		replyError(w, http.StatusUnauthorized, APIErrorFailedAuthentication)
+		return false
+	}
+	return true
+}
 
 // maxPostBodySize caps every admin POST body read by parsePost (NET-15).
 const maxPostBodySize = 64 << 10
@@ -60,7 +145,7 @@ func parseGet(r *http.Request, w http.ResponseWriter, requiredRole Role) (query 
 
 	case http.MethodOptions:
 		w.Header().Set("Access-Control-Allow-Methods", "GET, OPTIONS")
-		w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, "+SecretHeader)
 		w.WriteHeader(http.StatusNoContent)
 		return nil, errOptionsRequest
 
@@ -80,9 +165,7 @@ func parseGet(r *http.Request, w http.ResponseWriter, requiredRole Role) (query 
 		return query, nil
 	}
 
-	authInfo := makeAuthInfo(query)
-	if !authenticate(authInfo, requiredRole) {
-		replyError(w, http.StatusUnauthorized, APIErrorFailedAuthentication)
+	if !checkAuth(w, r, AuthInfo{}, requiredRole) {
 		return nil, errAuthFailed
 	}
 	return query, nil
@@ -102,7 +185,7 @@ func parsePostLimit(r *http.Request, w http.ResponseWriter, parsed any, required
 
 	case http.MethodOptions:
 		w.Header().Set("Access-Control-Allow-Methods", "POST, OPTIONS")
-		w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, "+SecretHeader)
 		w.WriteHeader(http.StatusNoContent)
 		return errOptionsRequest
 
@@ -139,21 +222,21 @@ func parsePostLimit(r *http.Request, w http.ResponseWriter, parsed any, required
 		w.WriteHeader(http.StatusInternalServerError)
 		return errNoAuthInfo
 	}
-	if !authenticate(authInfo, requiredRole) {
-		replyError(w, http.StatusUnauthorized, APIErrorFailedAuthentication)
+	if !checkAuth(w, r, authInfo, requiredRole) {
 		return errAuthFailed
 	}
 	return nil
 }
 
-func makeAuthInfo(query url.Values) AuthInfo {
-	return AuthInfo{
-		Secret: query.Get("secret"),
-	}
-}
-
+// authenticate refuses everything while apiSecret is empty (NET-33) and compares in constant time (NET-14).
 func authenticate(authInfo AuthInfo, requiredRole Role) bool {
-	return requiredRole == RoleNone || (apiSecret != "" && authInfo.Secret == apiSecret)
+	if requiredRole == RoleNone {
+		return true
+	}
+	if apiSecret == "" || authInfo.Secret == "" {
+		return false
+	}
+	return subtle.ConstantTimeCompare([]byte(authInfo.Secret), []byte(apiSecret)) == 1
 }
 
 func replyError(w http.ResponseWriter, statusCode int, errMsg APIErrorString) {

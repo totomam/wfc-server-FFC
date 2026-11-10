@@ -10,7 +10,7 @@ import (
 )
 
 // FFC Bonus Data messages (ffc-decomp ROADMAP #96, #38), admin only:
-//   GET  /api/ffc/admin/bonus?secret=…                     -> {"messages": [{id, text}]}
+//   GET  /api/ffc/admin/bonus                     -> {"messages": [{id, text}]}
 //   POST /api/ffc/admin/bonus {"secret","id","text"}         write/replace message id (1..64 one-shot, 65..96 news; ASCII, <= 1023 chars)
 //   POST /api/ffc/admin/bonus {"secret","id","delete":true}  remove it
 // Each id reaches a save once (the game flags it received), so a new announcement needs a new id. ffcbonus has the

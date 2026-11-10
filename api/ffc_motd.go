@@ -10,7 +10,7 @@ import (
 )
 
 // FFC login MOTD (ffc-decomp ROADMAP #54, s105-online), admin only:
-//   GET  /api/ffc/admin/motd?secret=…               -> {"text": "..."} ("" = none)
+//   GET  /api/ffc/admin/motd               -> {"text": "..."} ("" = none)
 //   POST /api/ffc/admin/motd {"secret","text"}        set/replace (ASCII, <= 360 chars, ~10 rows x 36)
 //   POST /api/ffc/admin/motd {"secret","delete":true} remove
 // Players running the modded loader see it in an OK box at the Wi-Fi top menu, once per Wi-Fi connection (again

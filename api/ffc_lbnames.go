@@ -11,7 +11,7 @@ import (
 
 // FFC leaderboard names typed in game (ffc-decomp ROADMAP #52, s113-online; Nd action "lbname", nas/dls_lbname.go).
 // Every /api/ffc stats view + the widget shows them (ffcstats.Names, applied by ApplyLinks). Admin moderation:
-//   GET  /api/ffc/admin/names?secret=…                    every profile -> name
+//   GET  /api/ffc/admin/names                    every profile -> name
 //   POST /api/ffc/admin/names {"secret","pid"}            delete one name (the game asks that player again)
 
 type ffcNameRequest struct {
