@@ -1,6 +1,10 @@
 #!/bin/bash
-# Update an FFC WFC server installed by vultr_setup.sh (/opt/wfc, user wwfc) to a newer commit. Run as root:
-#   curl -fsSL https://raw.githubusercontent.com/totomam/wfc-server-FFC/claude/ffc-fix03-y29slm/deploy/update.sh | bash
+# Update an FFC WFC server installed by vultr_setup.sh (/opt/wfc, user wwfc) to a newer commit. Run as root.
+# Download, check the sha256 against deploy/SHA256SUMS of the SAME pinned commit, read it, then run (no pipe-to-shell):
+#   C=<release commit sha>; R=https://raw.githubusercontent.com/totomam/wfc-server-FFC/$C/deploy
+#   curl -fsSLO $R/update.sh && curl -fsSL $R/SHA256SUMS -o SHA256SUMS
+#   sha256sum -c --ignore-missing SHA256SUMS
+#   COMMIT=$C bash update.sh
 # BRANCH / COMMIT override what is built (default: this branch's head). Keeps config.xml, the DB, balance/, package/.
 set -euo pipefail
 [ "$(id -u)" = 0 ] || { echo "run as root"; exit 1; }

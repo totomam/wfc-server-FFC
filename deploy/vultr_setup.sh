@@ -1,6 +1,10 @@
 #!/bin/bash
-# One-shot FFC WFC server setup for a fresh Ubuntu 24.04 VPS (Vultr etc.). Run as root:
-#   curl -fsSL https://raw.githubusercontent.com/totomam/wfc-server-FFC/claude/ffc-fix03-y29slm/deploy/vultr_setup.sh | bash
+# One-shot FFC WFC server setup for a fresh Ubuntu 24.04 VPS (Vultr etc.). Run as root.
+# Download, check the sha256 against deploy/SHA256SUMS of the SAME pinned commit, read it, then run (no pipe-to-shell):
+#   C=<release commit sha>; R=https://raw.githubusercontent.com/totomam/wfc-server-FFC/$C/deploy
+#   curl -fsSLO $R/vultr_setup.sh && curl -fsSL $R/SHA256SUMS -o SHA256SUMS
+#   sha256sum -c --ignore-missing SHA256SUMS
+#   PUBLIC_IP=A.B.C.D bash vultr_setup.sh
 # Phase 1 (no DS certs): HTTP only, port 443 stays closed. Certs: docs/online/HOSTING.md §6a in ffc-decomp.
 set -euo pipefail
 [ "$(id -u)" = 0 ] || { echo "run as root"; exit 1; }
@@ -36,7 +40,9 @@ id wwfc >/dev/null 2>&1 || useradd -r -m -d /var/lib/wwfc -s /usr/sbin/nologin w
 if [ ! -f /root/wwfc-db.txt ]; then openssl rand -hex 16 > /root/wwfc-db.txt; chmod 600 /root/wwfc-db.txt; fi
 DBPW=$(cat /root/wwfc-db.txt)
 sudo -u postgres psql -tAc "SELECT 1 FROM pg_roles WHERE rolname='wwfc'" | grep -q 1 \
-  || sudo -u postgres psql -c "CREATE ROLE wwfc WITH LOGIN SUPERUSER PASSWORD '$DBPW';"
+  || sudo -u postgres psql -c "CREATE ROLE wwfc WITH LOGIN PASSWORD '$DBPW';"
+# NET-19: owning the wwfc database is all schema.sql and the startup migrations need; drop superuser from old installs.
+sudo -u postgres psql -qc "ALTER ROLE wwfc WITH nosuperuser nocreatedb nocreaterole;"
 sudo -u postgres psql -tAc "SELECT 1 FROM pg_database WHERE datname='wwfc'" | grep -q 1 \
   || sudo -u postgres createdb -O wwfc wwfc
 
