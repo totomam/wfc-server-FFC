@@ -4,7 +4,7 @@
 #  merged.txt : branch fully in $REL -> delete.   archive.txt : has commits not in $REL -> tag archive/<b>, verify, delete.
 # A branch whose head moved since it was listed (someone is using it) is skipped. Arg 1: "true" = dry run.
 set -uo pipefail
-REL=${REL:-claude/ffc-fix03-y29slm}   # release branch (FFC-DECOMP NET-17/18)
+REL=${REL:-release}   # release branch (FFC-DECOMP NET-17/18; human 2026-11-10: named `release`)
 DRY=${1:-true}
 cd "${2:?list dir}"
 git fetch -q --prune origin '+refs/heads/*:refs/remotes/origin/*' '+refs/tags/*:refs/tags/*'

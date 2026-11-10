@@ -8,7 +8,7 @@
 # BRANCH / COMMIT override what is built (default: this branch's head). Keeps config.xml, the DB, balance/, package/.
 set -euo pipefail
 [ "$(id -u)" = 0 ] || { echo "run as root"; exit 1; }
-BRANCH=${BRANCH:-claude/ffc-fix03-y29slm}   # release branch (FFC-DECOMP NET-17/18)
+BRANCH=${BRANCH:-release}   # release branch (FFC-DECOMP NET-17/18; human 2026-11-10: named `release`)
 DIR=/opt/wfc
 export PATH=$PATH:/usr/local/go/bin
 [ -d $DIR/.git ] || { echo "$DIR missing: run vultr_setup.sh first"; exit 1; }

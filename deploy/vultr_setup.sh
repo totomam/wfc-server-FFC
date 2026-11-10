@@ -9,7 +9,7 @@
 set -euo pipefail
 [ "$(id -u)" = 0 ] || { echo "run as root"; exit 1; }
 
-BRANCH=${BRANCH:-claude/ffc-fix03-y29slm}   # release branch (FFC-DECOMP NET-17/18)
+BRANCH=${BRANCH:-release}   # release branch (FFC-DECOMP NET-17/18; human 2026-11-10: named `release`)
 COMMIT=${COMMIT:-FETCH_HEAD}   # default: head of the release branch $BRANCH
 GO_VER=1.25.0
 DIR=/opt/wfc
