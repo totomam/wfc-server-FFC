@@ -2,7 +2,9 @@ package common
 
 import (
 	"encoding/xml"
+	"fmt"
 	"os"
+	"strings"
 	"wwfc/logging"
 
 	"github.com/linkdata/deadlock"
@@ -87,6 +89,10 @@ func GetConfig() Config {
 		panic(err)
 	}
 
+	if err = checkSecrets(config); err != nil {
+		panic(err)
+	}
+
 	if config.GameSpyAddress == nil {
 		config.GameSpyAddress = &config.DefaultAddress
 	}
@@ -153,4 +159,20 @@ func (c Config) RegisterWebhooks() {
 	for _, webhook := range c.EventReporting.Webhooks {
 		webhook.RegisterWebhook()
 	}
+}
+
+// exampleSecrets are values shipped in config_example.xml, now or before (NET-33).
+var exampleSecrets = map[string]bool{
+	"password":           true,
+	"hQ3f57b3tW2WnjJH3v": true,
+}
+
+// checkSecrets refuses a config that still has a placeholder or example DB password or API secret.
+func checkSecrets(c Config) error {
+	for name, value := range map[string]string{"password": c.Password, "apiSecret": c.APISecret} {
+		if strings.HasPrefix(value, "CHANGE_ME") || exampleSecrets[value] {
+			return fmt.Errorf("config.xml: <%s> is still the example value %q; set a real one", name, value)
+		}
+	}
+	return nil
 }

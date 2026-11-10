@@ -59,9 +59,9 @@
      <!-- Allow default Dolphin device keys to be used -->
      <allowDefaultDolphinKeys>true</allowDefaultDolphinKeys>
 
-     <!-- Database Credentials -->
+     <!-- Database Credentials. The server refuses to start while the password is CHANGE_ME_... -->
      <username>username</username>
-     <password>password</password>
+     <password>CHANGE_ME_DB_PASSWORD</password>
 
      <!-- Database information -->
      <databaseAddress>127.0.0.1</databaseAddress>
@@ -85,9 +85,10 @@
 
      <!-- API secret.
           This is used for API authentication and should only be shared with
-          trusted administrators.
+          trusted administrators. The server refuses to start while it is
+          CHANGE_ME_...; leave it empty to disable the admin API.
       -->
-     <apiSecret>hQ3f57b3tW2WnjJH3v</apiSecret>
+     <apiSecret>CHANGE_ME_API_SECRET</apiSecret>
 
      <eventReporting>
           <!-- Enable to log events to the "events" table in the database -->
