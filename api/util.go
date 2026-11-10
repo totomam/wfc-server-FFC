@@ -10,6 +10,9 @@ import (
 	"strconv"
 )
 
+// maxPostBodySize caps every admin POST body read by parsePost (NET-15).
+const maxPostBodySize = 64 << 10
+
 type APIErrorString string
 
 const (
@@ -104,9 +107,15 @@ func parsePost(r *http.Request, w http.ResponseWriter, parsed any, requiredRole 
 		return errIncorrectMethod
 	}
 
-	jsonData, err := io.ReadAll(r.Body)
+	// The secret is inside the JSON body, so the size cap has to come before authentication.
+	jsonData, err := io.ReadAll(http.MaxBytesReader(w, r.Body, maxPostBodySize))
 	if err != nil {
-		w.WriteHeader(http.StatusBadRequest)
+		var tooLarge *http.MaxBytesError
+		if errors.As(err, &tooLarge) {
+			w.WriteHeader(http.StatusRequestEntityTooLarge)
+		} else {
+			w.WriteHeader(http.StatusBadRequest)
+		}
 		return err
 	}
 
