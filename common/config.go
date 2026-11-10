@@ -60,8 +60,8 @@ type Config struct {
 }
 
 // DefaultRetentionDays is the personal-data retention period when config.xml sets none (NET-22; policy, see
-// ffc-decomp docs/sessions/fix03/NET-22.md).
-const DefaultRetentionDays = 90
+// ffc-decomp docs/sessions/fix03/NET-22.md; human decision 2026-11-10: 1 year).
+const DefaultRetentionDays = 365
 
 type EventReportingConfig struct {
 	LogToDatabase bool                    `xml:"logToDatabase"`

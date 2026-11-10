@@ -11,7 +11,7 @@ Admin API (`/api/ffc/admin/*`, `/api/ban` ...): GET sends the apiSecret in heade
 POST in that header or the JSON `"secret"`; 10 failed auths/min per IP -> 429. Keep it behind an SSH tunnel.
 
 Personal data (NET-22): `wwfc purge [days]` (daily cron from deploy/vultr_setup.sh) clears IPs, device IDs, friend
-codes, last in-game names and raw match reports older than `personalDataRetentionDays` (config.xml, default 90);
+codes, last in-game names and raw match reports older than `personalDataRetentionDays` (config.xml, default 365 = 1 year, human decision 2026-11-10);
 webhooks never carry IPs, device IDs or friend codes (logging/webhook.go).
 
 Tests: `go test ./...`; game-side conformance test and docs live in the FFC decomp repo (`docs/online/`).
