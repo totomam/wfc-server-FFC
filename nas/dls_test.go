@@ -48,3 +48,45 @@ func TestDlsListContents(t *testing.T) {
 		}
 	}
 }
+
+// TestDlsListOverflow (P1-4.10): offset+num must not overflow into a
+// negative slice end; negative values are rejected, num is clamped.
+func TestDlsListOverflow(t *testing.T) {
+	old := dlcDir
+	dlcDir = t.TempDir()
+	defer func() { dlcDir = old }()
+	d := filepath.Join(dlcDir, "VDEE")
+	if err := os.MkdirAll(d, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	for _, n := range []string{"1", "2", "3"} {
+		if err := os.WriteFile(filepath.Join(d, n), []byte("x"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			t.Fatalf("dlsList panicked: %v", r)
+		}
+	}()
+	cases := []struct {
+		offset, num string
+		lines       int
+	}{
+		{"0", "9223372036854775807", 3},
+		{"1", "9223372036854775807", 2},
+		{"3", "9223372036854775807", 0},
+		{"9223372036854775807", "9223372036854775807", 0},
+		{"-1", "2", 0},
+		{"0", "-5", 0},
+		{"-9223372036854775808", "9223372036854775807", 0},
+		{"0", "2", 2},
+	}
+	for _, c := range cases {
+		f := map[string][]byte{"rhgamecd": []byte("VDEE"), "offset": []byte(c.offset), "num": []byte(c.num)}
+		got := string(dlsList("t", f))
+		if n := strings.Count(got, "\r\n"); n != c.lines {
+			t.Errorf("offset=%s num=%s: %d lines (%q), want %d", c.offset, c.num, n, got, c.lines)
+		}
+	}
+}

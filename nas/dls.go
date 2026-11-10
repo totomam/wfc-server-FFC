@@ -95,16 +95,21 @@ func dlsList(moduleName string, fields map[string][]byte) []byte {
 	files := dlcView(fields)
 	offset, _ := strconv.Atoi(string(fields["offset"]))
 	num, err := strconv.Atoi(string(fields["num"]))
-	if err != nil || num <= 0 {
+	if offset < 0 || (err == nil && num < 0) {
+		logging.Error(moduleName, "Negative list offset/num:", aurora.Cyan(string(fields["offset"])), aurora.Cyan(string(fields["num"])))
+		return nil
+	}
+	if err != nil || num == 0 {
 		num = len(files)
 	}
-	if offset < 0 || offset > len(files) {
+	if offset > len(files) {
 		offset = len(files)
 	}
-	end := offset + num
-	if end > len(files) {
-		end = len(files)
+	// Clamp before adding: offset+num must not overflow (num=MaxInt made end negative)
+	if num > len(files)-offset {
+		num = len(files) - offset
 	}
+	end := offset + num
 	var out []byte
 	for _, e := range files[offset:end] {
 		desc := base64.StdEncoding.EncodeToString([]byte("Bonus Data " + e.name))
