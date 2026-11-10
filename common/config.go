@@ -61,6 +61,9 @@ type Config struct {
 	// ResultPairWindowMinutes (NET-10): a PvP result report is accepted only for two profiles that were in one QR2
 	// group within this many minutes (absent or <= 0 = qr2.DefaultPairWindow, 30).
 	ResultPairWindowMinutes *int `xml:"resultPairWindowMinutes"`
+	// ResultForfeitMinutes (NET-35): a match row with one report (status single) older than this counts as a loss for
+	// the side that did not report (absent = database.DefaultForfeitAfter, 15; 0 or less = never).
+	ResultForfeitMinutes *int `xml:"resultForfeitMinutes"`
 }
 
 // DefaultRetentionDays is the personal-data retention period when config.xml sets none (NET-22; policy, see

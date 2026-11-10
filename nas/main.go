@@ -64,6 +64,7 @@ func StartServer(reload bool) {
 	}
 	resultDB = &db
 	lbNameDB = &db
+	database.SetForfeitMinutes(config.ResultForfeitMinutes) // NET-35
 
 	err := CacheProfanityFile()
 	if err != nil {

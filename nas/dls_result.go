@@ -199,6 +199,7 @@ func dlsResult(moduleName string, fields map[string][]byte) []byte {
 		return []byte("err pair")
 	}
 	m := r.toMatchReport(raw)
+	m.PairSeen = true
 	m.Queue = matchQueueOf(m.PidA, m.PidB)
 	res, err := resultDB.StoreMatchReportDetail(m)
 	if errors.Is(err, database.ErrPairCap) { // NET-11: one pair cannot post rows forever

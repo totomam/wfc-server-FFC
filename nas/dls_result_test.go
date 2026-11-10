@@ -118,7 +118,7 @@ func TestResultPairRequired(t *testing.T) {
 		t.Fatalf("unpaired report: %q, stored %d", got, len(fake.stored))
 	}
 	qr2.RememberPair(1000000202, 1000000101) // order does not matter
-	if got := string(dlsResult("t", f)); got != "ok 1 single" || len(fake.stored) != 1 {
+	if got := string(dlsResult("t", f)); got != "ok 1 single" || len(fake.stored) != 1 || !fake.stored[0].PairSeen {
 		t.Fatalf("paired report: %q, stored %+v", got, fake.stored)
 	}
 }

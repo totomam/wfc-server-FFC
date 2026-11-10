@@ -28,6 +28,10 @@ type Match struct {
 	Status    string    `json:"status"`
 	Queue     string    `json:"queue"` // ranked | casual | "" unknown (#35)
 	CreatedAt time.Time `json:"created_at"`
+	// NET-35: the profile whose console sent a "single" row's only report, and whether the server had seen the pair
+	// in one QR2 group (NET-10) when it was stored. Not public.
+	Reporter uint32 `json:"-"`
+	PairSeen bool   `json:"-"`
 }
 
 // Pick is one vivosaur of a team (subset of nas.ResultCreature's JSON).
@@ -268,6 +272,7 @@ func FilterMode(ms []Match, mode string) []Match {
 	return out
 }
 
+// A "forfeit" row (ApplyForfeits) counts wherever "confirmed" does.
 func Filter(ms []Match, modded *bool, from, to time.Time, statuses []string) []Match {
 	if len(statuses) == 0 {
 		statuses = []string{"confirmed"}
@@ -276,6 +281,7 @@ func Filter(ms []Match, modded *bool, from, to time.Time, statuses []string) []M
 	for _, s := range statuses {
 		ok[s] = true
 	}
+	ok[StatusForfeit] = ok[StatusForfeit] || ok["confirmed"]
 	out := []Match{}
 	for _, m := range ms {
 		if !ok[m.Status] || (modded != nil && m.Modded != *modded) {
@@ -287,4 +293,52 @@ func Filter(ms []Match, modded *bool, from, to time.Time, statuses []string) []M
 		out = append(out, m)
 	}
 	return out
+}
+
+// StatusForfeit (NET-35, human decision 2026-11-10: a quit counts as a loss) is the read-time status of a "single"
+// row (only one console reported) that is older than the forfeit timeout: the side that did not report lost.
+const StatusForfeit = "forfeit"
+
+// ApplyForfeits turns every "single" row older than after (at now) into a forfeit win for its reporter: WinnerPid =
+// Reporter, Draw = false, Status = StatusForfeit. Only rows of a pair the server saw in one QR2 group (PairSeen,
+// NET-10) qualify, so a made-up report against a stranger never becomes a win; rows from before that check never do.
+// Two single rows of one pair from opposite reporters less than after apart (each console reported, but too late to
+// be paired into one row) contradict each other: neither becomes a forfeit. after <= 0 disables forfeits.
+// The rows are copied when one changes; ms itself is not modified.
+func ApplyForfeits(ms []Match, after time.Duration, now time.Time) []Match {
+	if after <= 0 {
+		return ms
+	}
+	var out []Match
+	for i, m := range ms {
+		if !forfeitable(m, after, now) || contradicted(ms, i, after) {
+			continue
+		}
+		if out == nil {
+			out = append([]Match(nil), ms...)
+		}
+		out[i].WinnerPid, out[i].Draw, out[i].Status = m.Reporter, false, StatusForfeit
+	}
+	if out == nil {
+		return ms
+	}
+	return out
+}
+
+func forfeitable(m Match, after time.Duration, now time.Time) bool {
+	return m.Status == "single" && m.PairSeen && (m.Reporter == m.PidA || m.Reporter == m.PidB) && m.Reporter != 0 &&
+		now.Sub(m.CreatedAt) >= after
+}
+
+func contradicted(ms []Match, i int, after time.Duration) bool {
+	m := ms[i]
+	for j, o := range ms {
+		if j == i || o.Status != "single" || o.PidA != m.PidA || o.PidB != m.PidB || o.Reporter == m.Reporter {
+			continue
+		}
+		if d := o.CreatedAt.Sub(m.CreatedAt); d < after && d > -after {
+			return true
+		}
+	}
+	return false
 }

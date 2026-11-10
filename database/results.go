@@ -41,7 +41,11 @@ CREATE INDEX IF NOT EXISTS match_results_pair_idx ON public.match_results (pid_a
 ALTER TABLE public.match_results ADD COLUMN IF NOT EXISTS queue character varying NOT NULL DEFAULT '';
 -- NET-11: the one open (waiting for the other console) row of a pair; the partial unique index makes pairing atomic.
 ALTER TABLE public.match_results ADD COLUMN IF NOT EXISTS pair_open boolean NOT NULL DEFAULT false;
-CREATE UNIQUE INDEX IF NOT EXISTS match_results_open_pair_idx ON public.match_results (pid_a, pid_b) WHERE pair_open`
+CREATE UNIQUE INDEX IF NOT EXISTS match_results_open_pair_idx ON public.match_results (pid_a, pid_b) WHERE pair_open;
+-- NET-35: who sent the first report, and whether the pair had been seen in one QR2 group (NET-10) when it was stored;
+-- a single row with pair_seen counts as a loss for the other side after the forfeit timeout (ffcstats.ApplyForfeits).
+ALTER TABLE public.match_results ADD COLUMN IF NOT EXISTS reporter_pid bigint NOT NULL DEFAULT 0;
+ALTER TABLE public.match_results ADD COLUMN IF NOT EXISTS pair_seen boolean NOT NULL DEFAULT false`
 
 	queryUserOwnsProfile = `SELECT EXISTS(SELECT 1 FROM users WHERE profile_id = $1 AND user_id = $2)`
 	queryProfileExists   = `SELECT EXISTS(SELECT 1 FROM users WHERE profile_id = $1)`
@@ -55,7 +59,8 @@ FROM match_results WHERE pid_a = $1 AND pid_b = $2 AND pair_open FOR UPDATE`
 	queryCountPairRows = `SELECT count(*) FROM match_results WHERE pid_a = $1 AND pid_b = $2
 AND created_at > CURRENT_TIMESTAMP - interval '1 hour'`
 	queryInsertMatch = `INSERT INTO match_results (pid_a, pid_b, winner_pid, draw, time_up, modded, match_ver, name_a, name_b,
-team_a, team_b, report_a, report_b, status, queue, pair_open) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, 'single', $14, true)
+team_a, team_b, report_a, report_b, status, queue, pair_open, reporter_pid, pair_seen)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, 'single', $14, true, $15, $16)
 ON CONFLICT (pid_a, pid_b) WHERE pair_open DO NOTHING RETURNING id`
 	queryCompleteMatch = `UPDATE match_results SET report_a = COALESCE(report_a, $2), report_b = COALESCE(report_b, $3),
 status = $4, mismatch = $5, queue = CASE WHEN queue = '' THEN $6 ELSE queue END, time_up = time_up AND $7,
@@ -77,6 +82,8 @@ type MatchReport struct {
 	// (private), "" = unknown (no group found at report time; counted as ranked).
 	Queue string
 	Raw   []byte
+	// PairSeen (NET-10): the server saw the two profiles in one QR2 group before this report (nas checks it).
+	PairSeen bool
 }
 
 func (c *Connection) CreateMatchResultsTable() error {
@@ -175,7 +182,7 @@ func (c *Connection) storeMatchReportOnce(r MatchReport) (StoreResult, bool, err
 			return StoreResult{}, false, ErrPairCap
 		}
 		err = tx.QueryRow(c.ctx, queryInsertMatch, pa, pb, nullPid(r.WinnerPid), r.Draw, r.TimeUp, r.Modded, int64(r.MatchVer),
-			r.NameA, r.NameB, []byte(r.TeamA), []byte(r.TeamB), repA, repB, r.Queue).Scan(&id)
+			r.NameA, r.NameB, []byte(r.TeamA), []byte(r.TeamB), repA, repB, r.Queue, int64(r.reporterPid()), r.PairSeen).Scan(&id)
 		if err == nil {
 			return StoreResult{ID: id, Status: "single"}, false, tx.Commit(c.ctx)
 		}
@@ -203,6 +210,13 @@ func (c *Connection) storeMatchReportOnce(r MatchReport) (StoreResult, bool, err
 		return StoreResult{}, false, err
 	}
 	return StoreResult{ID: id, Status: status, Mismatch: mismatch}, false, tx.Commit(c.ctx)
+}
+
+func (r MatchReport) reporterPid() uint32 {
+	if r.ReporterIsA {
+		return r.PidA
+	}
+	return r.PidB
 }
 
 // CompareMatch returns "" when the second report agrees with the stored row, else the first differing field.
