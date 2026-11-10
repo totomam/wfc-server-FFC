@@ -35,7 +35,7 @@ func TestDlsLbName(t *testing.T) {
 	lbNameDB = f
 	lbNameIsBad = func(w string) (bool, error) { return w == "badword", nil }
 	req := func(attr1 string, set bool) string {
-		fl := map[string][]byte{"userid": []byte("4242"), "rhgamecd": []byte("VDEE")}
+		fl := map[string][]byte{"userid": []byte("4242"), "token": []byte(dlsIssueToken(4242)), "rhgamecd": []byte("VDEE")}
 		if set {
 			fl["attr1"] = []byte(attr1)
 		}

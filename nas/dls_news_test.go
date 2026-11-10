@@ -29,7 +29,7 @@ func TestNewsServed(t *testing.T) {
 		}
 		return []ffcbonus.NewsItem{{Name: "97", Body: []byte(text)}, {Name: "5", Body: []byte("bad id")}, {Name: "98", Body: nil}}
 	}
-	f := map[string][]byte{"rhgamecd": []byte("VDEE"), "userid": []byte("42")}
+	f := map[string][]byte{"rhgamecd": []byte("VDEE"), "userid": []byte("42"), "token": []byte(dlsIssueToken(42))}
 	if c := string(dlsCount("t", f)); c != "3\x00" {
 		t.Fatalf("count %q", c)
 	}
@@ -55,7 +55,7 @@ func TestNewsServed(t *testing.T) {
 		t.Fatalf("admin news %q", b)
 	}
 	// other console / no userid: only the disk files
-	g := map[string][]byte{"rhgamecd": []byte("VDEE"), "userid": []byte("7")}
+	g := map[string][]byte{"rhgamecd": []byte("VDEE"), "userid": []byte("7"), "token": []byte(dlsIssueToken(7))}
 	if c := string(dlsCount("t", g)); c != "2\x00" {
 		t.Fatalf("other count %q", c)
 	}
@@ -74,7 +74,7 @@ func TestNewsMailServed(t *testing.T) {
 	ffcbonus.NewsSource = func(gamecd string, user uint64) []ffcbonus.NewsItem {
 		return []ffcbonus.NewsItem{{Name: "165", Body: []byte("MAIL 1/1\nhi")}, {Name: "181", Body: []byte("x")}, {Name: "150", Body: []byte("x")}}
 	}
-	f := map[string][]byte{"rhgamecd": []byte("VDEE"), "userid": []byte("43")}
+	f := map[string][]byte{"rhgamecd": []byte("VDEE"), "userid": []byte("43"), "token": []byte(dlsIssueToken(43))}
 	if l := string(dlsList("t", f)); l == "" || !strings.HasPrefix(l, "165\t") || strings.Count(l, "\r\n") != 1 {
 		t.Fatalf("list %q", l)
 	}

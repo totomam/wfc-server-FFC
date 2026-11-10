@@ -173,10 +173,10 @@ func dlsResult(moduleName string, fields map[string][]byte) []byte {
 		logging.Error(moduleName, "result: invalid report:", aurora.Cyan(err.Error()))
 		return []byte("err report")
 	}
-	userID, err := strconv.ParseUint(string(fields["userid"]), 10, 64)
-	if err != nil {
-		logging.Error(moduleName, "result: bad userid")
-		return []byte("err userid")
+	userID, ok := dlsUser(fields) // NET-10: userid + its SVCLOC token
+	if !ok {
+		logging.Error(moduleName, "result: userid", aurora.Cyan(string(fields["userid"])), "without a valid token")
+		return []byte("err token")
 	}
 	if resultDB == nil {
 		logging.Error(moduleName, "result: no database")

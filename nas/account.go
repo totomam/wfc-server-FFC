@@ -225,6 +225,7 @@ func svcloc(moduleName string, fields map[string][]byte) map[string]string {
 	}
 
 	authToken := "NDS/SVCLOC/TOKEN"
+	userID, err := strconv.ParseUint(string(fields["userid"]), 10, 64)
 
 	switch string(fields["svc"]) {
 	default:
@@ -232,7 +233,12 @@ func svcloc(moduleName string, fields map[string][]byte) map[string]string {
 		param["svchost"] = "n/a"
 
 	case "9000":
+		// NET-10: the DS client reads "servicetoken" (DWCi_Svl_ParseHttp) and posts it as "token" on each Nd request.
+		if err == nil && userID != 0 {
+			authToken = dlsIssueToken(userID)
+		}
 		param["token"] = authToken
+		param["servicetoken"] = authToken
 		param["svchost"] = "dls1.nintendowifi.net"
 
 	case "9001":

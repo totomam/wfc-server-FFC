@@ -52,7 +52,7 @@ func TestResultPostgresPair(t *testing.T) {
 		return b
 	}
 	send := func(raw []byte, user string) string {
-		return string(dlsResult("t", map[string][]byte{"attr1": raw[:96], "attr2": raw[96:], "userid": []byte(user)}))
+		return string(dlsResult("t", map[string][]byte{"attr1": raw[:96], "attr2": raw[96:], "userid": []byte(user), "token": []byte(tok(user))}))
 	}
 	if r := send(a, "4242"); len(r) < 3 || r[:2] != "ok" || r[len(r)-6:] != "single" {
 		t.Fatalf("first report: %q", r)
@@ -88,7 +88,7 @@ func TestResultPostgresQueue(t *testing.T) {
 	copy(b[8:12], a[4:8])
 	binary.LittleEndian.PutUint32(b[resultCrcOfs:], crc32.ChecksumIEEE(b[:resultCrcOfs]))
 	send := func(raw []byte, user string) string {
-		return string(dlsResult("t", map[string][]byte{"attr1": raw[:96], "attr2": raw[96:], "userid": []byte(user)}))
+		return string(dlsResult("t", map[string][]byte{"attr1": raw[:96], "attr2": raw[96:], "userid": []byte(user), "token": []byte(tok(user))}))
 	}
 	matchQueueOf = func(uint32, uint32) string { return "" } // first console: group already gone
 	send(a, "4242")

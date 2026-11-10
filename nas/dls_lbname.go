@@ -1,7 +1,6 @@
 package nas
 
 import (
-	"strconv"
 	"strings"
 	"unicode"
 	"unicode/utf8"
@@ -55,8 +54,8 @@ func cleanLbName(raw []byte) string {
 }
 
 func dlsLbName(moduleName string, fields map[string][]byte) []byte {
-	userID, err := strconv.ParseUint(string(fields["userid"]), 10, 64)
-	if err != nil || userID == 0 || lbNameDB == nil {
+	userID, ok := dlsUser(fields) // NET-10: userid + its SVCLOC token
+	if !ok || lbNameDB == nil {
 		return []byte("err")
 	}
 	pids, err := lbNameDB.ProfilesOfUser(userID, string(fields["rhgamecd"]))

@@ -48,7 +48,7 @@ func goldenFields(t *testing.T) map[string][]byte {
 	if err1 != nil || err2 != nil {
 		t.Fatal(err1, err2)
 	}
-	return map[string][]byte{"attr1": a1, "attr2": a2, "userid": []byte("4242"), "rhgamecd": []byte("VDEE")}
+	return map[string][]byte{"attr1": a1, "attr2": a2, "userid": []byte("4242"), "token": []byte(dlsIssueToken(4242)), "rhgamecd": []byte("VDEE")}
 }
 
 func TestResultGoldenDecode(t *testing.T) {
@@ -88,6 +88,7 @@ func TestDlsResultValidation(t *testing.T) {
 	}
 	f := goldenFields(t)
 	f["userid"] = []byte("777") // someone else's user id claiming pid 1000000101
+	f["token"] = []byte(dlsIssueToken(777))
 	if got := string(dlsResult("t", f)); got != "err owner" {
 		t.Fatalf("owner check: %q", got)
 	}

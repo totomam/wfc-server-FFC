@@ -34,8 +34,8 @@ func newsItems(gamecd string, fields map[string][]byte) []ffcbonus.NewsItem {
 	if ffcbonus.NewsSource == nil {
 		return nil
 	}
-	userID, err := strconv.ParseUint(string(fields["userid"]), 10, 64)
-	if err != nil || userID == 0 {
+	userID, ok := dlsUser(fields) // NET-10: no per-user news/mail for a userid without its SVCLOC token
+	if !ok {
 		return nil
 	}
 	key := gamecd + "/" + strconv.FormatUint(userID, 10)
