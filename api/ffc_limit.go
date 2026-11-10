@@ -14,10 +14,12 @@ import (
 // The client IP is the TCP peer (no X-Forwarded-For trust: the NAS is not behind a proxy on the FFC VPS).
 
 const (
-	ffcRateBurst  = 20
-	ffcRatePerMin = 60
-	ffcCacheTTL   = 15 * time.Second
-	ffcBucketsMax = 10000 // forget idle clients past this many
+	ffcRateBurst    = 20
+	ffcRatePerMin   = 60
+	ffcCacheTTL     = 15 * time.Second
+	ffcCacheKeysMax = 16             // NET-30: live window keys before a miss loads the whole table
+	ffcCacheRound   = 24 * time.Hour // NET-30: cached windows are rounded out to whole UTC days
+	ffcBucketsMax   = 10000          // forget idle clients past this many
 )
 
 type ffcBucket struct {
@@ -81,38 +83,111 @@ func ffcLimited(h http.HandlerFunc) http.HandlerFunc {
 }
 
 type ffcCacheEntry struct {
-	at   time.Time
-	rows []ffcstats.Match
+	at       time.Time
+	from, to time.Time // loaded window, rounded to ffcCacheRound; zero = open end
+	rows     []ffcstats.Match
 }
 
 var (
 	ffcCacheMu sync.Mutex
 	ffcCache   = map[[2]int64]ffcCacheEntry{}
+	ffcLoadMu  sync.Mutex // NET-30: one table load at a time; waiters re-check the cache
+	// ffcLoadMatchesDB is db.LoadMatches; tests replace it to count table replays.
+	ffcLoadMatchesDB = func(from, to time.Time, limit int) ([]ffcstats.Match, error) { return db.LoadMatches(from, to, limit) }
 )
+
+// ffcCovers: entry e holds every row of [from, to) (and was not cut by the row limit).
+func ffcCovers(e ffcCacheEntry, from, to time.Time) bool {
+	if len(e.rows) >= ffcMaxRows {
+		return false
+	}
+	okFrom := e.from.IsZero() || (!from.IsZero() && !from.Before(e.from))
+	okTo := e.to.IsZero() || (!to.IsZero() && !to.After(e.to))
+	return okFrom && okTo
+}
+
+// ffcCacheLookup returns a live entry covering [from, to); caller holds ffcCacheMu.
+func ffcCacheLookup(now, from, to time.Time) (ffcCacheEntry, bool) {
+	for k, e := range ffcCache {
+		if now.Sub(e.at) >= ffcCacheTTL {
+			delete(ffcCache, k)
+			continue
+		}
+		if ffcCovers(e, from, to) {
+			return e, true
+		}
+	}
+	return ffcCacheEntry{}, false
+}
+
+// ffcWindowRows: the rows of e inside [from, to) (zero = open end), as db.LoadMatches(from, to) would return them.
+func ffcWindowRows(e ffcCacheEntry, from, to time.Time) []ffcstats.Match {
+	if (from.IsZero() || from.Equal(e.from)) && (to.IsZero() || to.Equal(e.to)) {
+		return e.rows
+	}
+	out := make([]ffcstats.Match, 0, len(e.rows))
+	for _, m := range e.rows {
+		if (!from.IsZero() && m.CreatedAt.Before(from)) || (!to.IsZero() && !m.CreatedAt.Before(to)) {
+			continue
+		}
+		out = append(out, m)
+	}
+	return out
+}
 
 // ffcLoadMatchesCached: db.LoadMatches for the window minus banned.json violations (#75), reused for ffcCacheTTL.
 // Callers only filter/read the rows.
+// NET-30: the window is caller-chosen (query params, now+1h in brackets), so the cache key is the window rounded out to
+// ffcCacheRound, any live entry that covers the window answers it, and past ffcCacheKeysMax live keys a miss loads the
+// whole table (one entry that covers every window). So at most ffcCacheKeysMax+1 loads per ffcCacheTTL, whatever the
+// windows (unless the table exceeds ffcMaxRows, where a covering load would be cut and every load is exact again).
 func ffcLoadMatchesCached(from, to time.Time) ([]ffcstats.Match, error) {
-	key := [2]int64{from.UnixNano(), to.UnixNano()}
 	now := ffcNow()
 	ffcCacheMu.Lock()
-	if e, ok := ffcCache[key]; ok && now.Sub(e.at) < ffcCacheTTL {
-		ffcCacheMu.Unlock()
-		return e.rows, nil
-	}
+	e, ok := ffcCacheLookup(now, from, to)
 	ffcCacheMu.Unlock()
-	rows, err := db.LoadMatches(from, to, ffcMaxRows)
+	if ok {
+		return ffcWindowRows(e, from, to), nil
+	}
+	ffcLoadMu.Lock()
+	defer ffcLoadMu.Unlock()
+	ffcCacheMu.Lock()
+	e, ok = ffcCacheLookup(now, from, to)
+	full := len(ffcCache) >= ffcCacheKeysMax
+	ffcCacheMu.Unlock()
+	if ok {
+		return ffcWindowRows(e, from, to), nil
+	}
+	lf, lt := time.Time{}, time.Time{}
+	if !full {
+		if !from.IsZero() {
+			lf = from.UTC().Truncate(ffcCacheRound)
+		}
+		if !to.IsZero() {
+			lt = to.UTC().Truncate(ffcCacheRound)
+			if lt.Before(to) {
+				lt = lt.Add(ffcCacheRound)
+			}
+		}
+	}
+	rows, err := ffcLoadMatchesDB(lf, lt, ffcMaxRows)
+	if err == nil && len(rows) >= ffcMaxRows && !(lf.Equal(from) && lt.Equal(to)) {
+		lf, lt = from, to // cut by the row limit: a wider load would drop rows of the window, so load it exactly
+		rows, err = ffcLoadMatchesDB(lf, lt, ffcMaxRows)
+	}
 	if err != nil {
 		return nil, err
 	}
 	rows = ffcstats.DropBanned(rows, ffcBanRules()) // #75: banned-team matches never reach public stats
+	e = ffcCacheEntry{at: now, from: lf, to: lt, rows: rows}
 	ffcCacheMu.Lock()
-	for k, e := range ffcCache {
-		if now.Sub(e.at) >= ffcCacheTTL {
+	if len(ffcCache) >= ffcCacheKeysMax+1 { // only reachable if the full-table load was cut by ffcMaxRows
+		for k := range ffcCache {
 			delete(ffcCache, k)
+			break
 		}
 	}
-	ffcCache[key] = ffcCacheEntry{at: now, rows: rows}
+	ffcCache[[2]int64{lf.UnixNano(), lt.UnixNano()}] = e
 	ffcCacheMu.Unlock()
-	return rows, nil
+	return ffcWindowRows(e, from, to), nil
 }
