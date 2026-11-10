@@ -1,6 +1,7 @@
 package serverbrowser
 
 import (
+	"fmt"
 	"wwfc/filter"
 	"wwfc/logging"
 
@@ -38,7 +39,7 @@ func filterServers(moduleName string, servers []map[string]string, queryGame str
 			continue
 		}
 
-		ret, err := filter.Eval(tree, server, queryGame)
+		ret, err := safeEval(tree, server, queryGame)
 		if err != nil {
 			logging.Error(moduleName, "Error evaluating filter:", err.Error())
 			return []map[string]string{}
@@ -94,4 +95,16 @@ func filterSelfLookup(moduleName string, servers []map[string]string, queryGame 
 
 	logging.Info(moduleName, "Self lookup for", aurora.Cyan(dwcPid), "matched", aurora.BrightCyan(len(filtered)), "servers via public IP")
 	return filtered
+}
+
+// safeEval is a second guard around filter.Eval: a panic in the evaluator
+// must only fail this query, never the whole server.
+func safeEval(tree *filter.TreeNode, server map[string]string, queryGame string) (ret int64, err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			ret = 0
+			err = fmt.Errorf("filter eval panic: %v", r)
+		}
+	}()
+	return filter.Eval(tree, server, queryGame)
 }

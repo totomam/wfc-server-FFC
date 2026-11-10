@@ -3,6 +3,7 @@ package filter
 
 import (
 	"errors"
+	"fmt"
 	"regexp"
 	"strconv"
 	"strings"
@@ -17,9 +18,16 @@ type expression struct {
 // Bug(zdebeer): functions is eval from right to left instead from left to right.
 func Eval(basenode *TreeNode, context map[string]string, queryGame string) (value int64, err error) {
 	defer func() {
-		if str := recover(); str != nil {
+		if r := recover(); r != nil {
 			value = 0
-			err = errors.New(str.(string))
+			switch v := r.(type) {
+			case error:
+				err = v
+			case string:
+				err = errors.New(v)
+			default:
+				err = fmt.Errorf("%v", v)
+			}
 		}
 	}()
 
