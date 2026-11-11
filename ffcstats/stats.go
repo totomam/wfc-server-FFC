@@ -299,8 +299,8 @@ func Filter(ms []Match, modded *bool, from, to time.Time, statuses []string) []M
 // row (only one console reported) that is older than the forfeit timeout: the side that did not report lost.
 const StatusForfeit = "forfeit"
 
-// ApplyForfeits turns every "single" row older than after (at now) into a forfeit win for its reporter: WinnerPid =
-// Reporter, Draw = false, Status = StatusForfeit. Only rows of a pair the server saw in one QR2 group (PairSeen,
+// ApplyForfeits turns every "single" row older than after (at now) into a counted forfeit row: Status = StatusForfeit,
+// WinnerPid = Reporter, Draw = false, unless the report admits the reporter's own loss (admitsLoss: kept as reported). Only rows of a pair the server saw in one QR2 group (PairSeen,
 // NET-10) qualify, so a made-up report against a stranger never becomes a win; rows from before that check never do.
 // Two single rows of one pair from opposite reporters less than after apart (each console reported, but too late to
 // be paired into one row) contradict each other: neither becomes a forfeit. after <= 0 disables forfeits.
@@ -317,12 +317,25 @@ func ApplyForfeits(ms []Match, after time.Duration, now time.Time) []Match {
 		if out == nil {
 			out = append([]Match(nil), ms...)
 		}
-		out[i].WinnerPid, out[i].Draw, out[i].Status = m.Reporter, false, StatusForfeit
+		out[i].Status = StatusForfeit
+		if !admitsLoss(m) {
+			out[i].WinnerPid, out[i].Draw = m.Reporter, false
+		}
 	}
 	if out == nil {
 		return ms
 	}
 	return out
+}
+
+// admitsLoss: the lone report says its own console lost (the other side won, then left). That result is kept: the
+// forfeit rule only makes the side that did not report lose, never the reporter a winner against its own report.
+func admitsLoss(m Match) bool {
+	other := m.PidA
+	if m.Reporter == m.PidA {
+		other = m.PidB
+	}
+	return !m.Draw && m.WinnerPid == other
 }
 
 func forfeitable(m Match, after time.Duration, now time.Time) bool {

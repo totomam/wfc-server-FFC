@@ -20,8 +20,8 @@ func playerOf(lb []Player, pid uint32) Player {
 func TestForfeitAfterTimeout(t *testing.T) {
 	t0 := time.Date(2026, 11, 10, 12, 0, 0, 0, time.UTC)
 	after := 15 * time.Minute
-	// pid 10 reported (claiming it lost: the claim does not matter, 20 never confirmed), pid 20 never reported.
-	single := Match{ID: 1, PidA: 10, PidB: 20, WinnerPid: 20, Status: "single", Reporter: 10, PairSeen: true, CreatedAt: t0}
+	// pid 10 reported a win, pid 20 never reported.
+	single := Match{ID: 1, PidA: 10, PidB: 20, WinnerPid: 10, Status: "single", Reporter: 10, PairSeen: true, CreatedAt: t0}
 	board := func(ms []Match, now time.Time) []Player {
 		return Leaderboard(Filter(ApplyForfeits(ms, after, now), nil, time.Time{}, time.Time{}, nil), 0)
 	}
@@ -35,8 +35,16 @@ func TestForfeitAfterTimeout(t *testing.T) {
 	if loser.Losses != 1 || loser.Wins != 0 || loser.Elo != EloStart-EloK/2 || winner.Wins != 1 || winner.Elo != EloStart+EloK/2 {
 		t.Fatalf("after timeout: loser %+v winner %+v", loser, winner)
 	}
-	if single.Status != "single" || single.WinnerPid != 20 {
+	if single.Status != "single" || single.WinnerPid != 10 {
 		t.Fatal("input row modified")
+	}
+
+	// the lone report admits its own loss: kept (20 wins), never turned into a win for the reporter
+	admitted := single
+	admitted.WinnerPid = 20
+	lb = board([]Match{admitted}, t0.Add(after))
+	if w, l := playerOf(lb, 20), playerOf(lb, 10); w.Wins != 1 || w.Losses != 0 || l.Losses != 1 || l.Wins != 0 {
+		t.Fatalf("admitted loss: 20 %+v 10 %+v", w, l)
 	}
 
 	unpaired := single

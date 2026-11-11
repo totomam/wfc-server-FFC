@@ -29,8 +29,8 @@ func TestSingleReportForfeit(t *testing.T) {
 	clean()
 	defer clean()
 	team := []byte(`[{"slot":0,"creature":102,"rank_index":2}]`)
-	res, err := db.StoreMatchReportDetail(MatchReport{PidA: a, PidB: b, WinnerPid: a, NameA: "A", NameB: "B", TeamA: team, TeamB: team,
-		ReporterIsA: false, Raw: []byte{1}, PairSeen: true}) // b reported (and admits it lost); a never reports
+	res, err := db.StoreMatchReportDetail(MatchReport{PidA: a, PidB: b, WinnerPid: b, NameA: "A", NameB: "B", TeamA: team, TeamB: team,
+		ReporterIsA: false, Raw: []byte{1}, PairSeen: true}) // b reported a win; a never reports (quit = loss for a)
 	if err != nil || res.Status != "single" {
 		t.Fatal(res, err)
 	}
